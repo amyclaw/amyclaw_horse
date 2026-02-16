@@ -311,6 +311,32 @@ body {
   color: var(--text-secondary);
 }
 
+.create-link-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.create-link-section .input {
+  width: 100%;
+}
+
+.share-link-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.share-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.share-actions .btn {
+  flex: 1;
+}
+
 code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;

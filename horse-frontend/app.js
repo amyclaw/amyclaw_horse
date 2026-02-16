@@ -1,6 +1,11 @@
 (() => {
   const urlParams = new URLSearchParams(window.location.search);
   const currentHorseOwner = urlParams.get("ref") || "Admin";
+  
+  // 更新右上角显示的名字
+  if (ownerNameEl) {
+    ownerNameEl.textContent = currentHorseOwner;
+  }
 
   const ownerNameEl = document.getElementById("ownerName");
   const statusEl = document.getElementById("statusText");
@@ -9,6 +14,11 @@
   const sendButtonEl = document.getElementById("sendButton");
   const currentLinkEl = document.getElementById("currentLink");
   const copyButtonEl = document.getElementById("copyButton");
+  const createLinkInputEl = document.getElementById("createLinkInput");
+  const createLinkButtonEl = document.getElementById("createLinkButton");
+  const createLinkSectionEl = document.getElementById("createLinkSection");
+  const shareLinkSectionEl = document.getElementById("shareLinkSection");
+  const shareButtonEl = document.getElementById("shareButton");
 
   // 通过 Nginx 反向代理访问 WebSocket（/ws -> 127.0.0.1:2026）
   // 使用当前页面的协议和主机，自动适配 http/https
@@ -30,7 +40,6 @@
   let reconnectAttempts = 0;
   const maxReconnectAttempts = 3;
   const messages = [];
-  let autoGreetingSent = false; // 标记是否已发送自动问候（用于触发开场白）
 
   // 生成或恢复用户唯一 ID（保存在 localStorage，确保刷新后能恢复对话历史）
   function getOrCreateUid() {
@@ -236,40 +245,8 @@
       if (payload && payload.type === "res" && payload.ok === true && payload.payload && payload.payload.type === "hello-ok") {
         setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
         enableInput();
-        // 连接成功后，自动发送一条问候消息，触发 AI 生成个性化的开场拜年语
-        // 使用一个特殊的消息来触发开场白
-        if (!autoGreetingSent) {
-          autoGreetingSent = true;
-          setTimeout(() => {
-            if (socket && socket.readyState === WebSocket.OPEN) {
-              const requestId = `greeting_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-              const idempotencyKey = `greeting_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-              const greetingPayload = {
-                type: "req",
-                id: requestId,
-                method: "chat.send",
-                params: {
-                  sessionKey: sessionKey,
-                  message: "你好", // 简单的问候，触发 AI 生成个性化拜年语
-                  idempotencyKey: idempotencyKey,
-                },
-              };
-              try {
-                socket.send(JSON.stringify(greetingPayload));
-                console.log("已发送自动问候，触发 AI 生成开场拜年语");
-              } catch (error) {
-                console.error("发送问候消息失败", error);
-              }
-            }
-          }, 500); // 延迟 500ms 确保连接稳定
-        }
+        // 不再自动触发对话，只能通过发送按钮触发
         return; // 不显示 hello-ok 消息给用户
-      }
-
-      // 忽略自动问候的响应（不显示给用户）
-      if (payload && payload.type === "res" && payload.id && payload.id.startsWith("greeting_")) {
-        console.log("自动问候响应（已忽略）:", payload);
-        return; // 不显示自动问候的响应
       }
 
       // 处理 chat.send 响应
@@ -541,16 +518,43 @@
   }
 
   function setupShareSection() {
-    const origin = window.location.origin || "https://horse.amyclaw.com";
-    const basePath = window.location.pathname || "/";
-    const link = `${origin}${basePath}?ref=${encodeURIComponent(
-      currentHorseOwner
-    )}`;
+    // 如果 URL 中有 ref 参数，显示分享区域
+    if (currentHorseOwner && currentHorseOwner !== "Admin") {
+      showShareLinkSection();
+    } else {
+      // 否则显示创建链接区域
+      showCreateLinkSection();
+    }
 
-    currentLinkEl.textContent = link;
-    currentLinkEl.href = link;
+    // 创建链接按钮事件
+    createLinkButtonEl.addEventListener("click", () => {
+      const name = createLinkInputEl.value.trim();
+      if (!name) {
+        alert("请输入你的名字");
+        return;
+      }
+      // 验证名字（只允许字母、数字、中文、下划线、连字符）
+      if (!/^[\u4e00-\u9fa5a-zA-Z0-9_-]+$/.test(name)) {
+        alert("名字只能包含中文、英文、数字、下划线和连字符");
+        return;
+      }
+      // 跳转到新链接
+      const origin = window.location.origin || "https://horse.amyclaw.com";
+      const basePath = window.location.pathname || "/";
+      const newUrl = `${origin}${basePath}?ref=${encodeURIComponent(name)}`;
+      window.location.href = newUrl;
+    });
 
+    // 回车键创建链接
+    createLinkInputEl.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        createLinkButtonEl.click();
+      }
+    });
+
+    // 复制链接按钮事件
     copyButtonEl.addEventListener("click", async () => {
+      const link = currentLinkEl.href;
       try {
         if (navigator.clipboard && navigator.clipboard.writeText) {
           await navigator.clipboard.writeText(link);
@@ -575,6 +579,55 @@
         }, 1600);
       }
     });
+
+    // 一键分享按钮事件
+    shareButtonEl.addEventListener("click", async () => {
+      const link = currentLinkEl.href;
+      const title = `${currentHorseOwner} 的 Horse 拜年分身`;
+      const text = `来给 ${currentHorseOwner} 拜年吧！`;
+
+      try {
+        if (navigator.share) {
+          // 使用 Web Share API（移动端）
+          await navigator.share({
+            title: title,
+            text: text,
+            url: link,
+          });
+        } else {
+          // 降级方案：复制链接并提示
+          await navigator.clipboard.writeText(link);
+          alert(`链接已复制到剪贴板：\n${link}\n\n可以粘贴分享给朋友了！`);
+        }
+      } catch (error) {
+        // 用户取消分享或其他错误
+        if (error.name !== "AbortError") {
+          console.error("分享失败", error);
+          // 降级到复制
+          await navigator.clipboard.writeText(link);
+          alert(`链接已复制到剪贴板：\n${link}`);
+        }
+      }
+    });
+  }
+
+  function showCreateLinkSection() {
+    createLinkSectionEl.style.display = "block";
+    shareLinkSectionEl.style.display = "none";
+  }
+
+  function showShareLinkSection() {
+    createLinkSectionEl.style.display = "none";
+    shareLinkSectionEl.style.display = "block";
+    
+    const origin = window.location.origin || "https://horse.amyclaw.com";
+    const basePath = window.location.pathname || "/";
+    const link = `${origin}${basePath}?ref=${encodeURIComponent(
+      currentHorseOwner
+    )}`;
+
+    currentLinkEl.textContent = link;
+    currentLinkEl.href = link;
   }
 
   function setupInputEvents() {

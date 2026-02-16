@@ -52,19 +52,28 @@
           <div class="card-header">
             <div class="card-title">创建你的专属拜年分身</div>
           </div>
-          <p class="share-text">
-            想要自己的拜年分身？只需将本页链接中的
-            <code>ref=</code>
-            改成你的名字，然后发给你的朋友。
-          </p>
-          <div class="share-link-wrapper">
-            <a id="currentLink" class="share-link" href="#">加载中...</a>
-            <button id="copyButton" class="btn secondary-btn">复制链接</button>
+          <div id="createLinkSection" class="create-link-section">
+            <input
+              type="text"
+              id="createLinkInput"
+              class="input"
+              placeholder="输入你的名字，创建专属链接"
+              maxlength="20"
+            />
+            <button id="createLinkButton" class="btn primary-btn">创建链接</button>
           </div>
-          <p class="share-hint">
-            示例：
-            <code>https://horse.amyclaw.com?ref=你的名字</code>
-          </p>
+          <div id="shareLinkSection" class="share-link-section" style="display: none;">
+            <p class="share-text">
+              你的专属拜年分身链接：
+            </p>
+            <div class="share-link-wrapper">
+              <a id="currentLink" class="share-link" href="#" target="_blank">加载中...</a>
+              <button id="copyButton" class="btn secondary-btn">复制链接</button>
+            </div>
+            <div class="share-actions">
+              <button id="shareButton" class="btn secondary-btn">一键分享</button>
+            </div>
+          </div>
         </section>
       </main>
 
