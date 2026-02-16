@@ -10,9 +10,23 @@
   const currentLinkEl = document.getElementById("currentLink");
   const copyButtonEl = document.getElementById("copyButton");
 
-  // 默认使用占位地址，部署时请替换为实际 WS 地址，例如：
-  //   ws://你的IP:8080
-  const WS_BASE_URL = "ws://YOUR_SERVER_IP_OR_DOMAIN:8080";
+  // WebSocket 地址：根据当前访问域名自动判断
+  // 外网访问 horse.amyclaw.com 时使用 /ws 路径（由 Nginx 代理）
+  // 内网直接访问时使用内网地址
+  function getWebSocketUrl() {
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    
+    // 如果是外网域名 horse.amyclaw.com，使用相对路径 /ws（由 Nginx 代理）
+    if (hostname === 'horse.amyclaw.com' || hostname.includes('amyclaw.com')) {
+      return `${protocol}//${hostname}/ws`;
+    }
+    
+    // 内网访问时使用内网地址（开发环境）
+    return "ws://10.8.52.122:8080";
+  }
+  
+  const WS_BASE_URL = getWebSocketUrl();
 
   let socket = null;
   let reconnectAttempts = 0;
