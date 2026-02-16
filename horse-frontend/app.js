@@ -647,11 +647,7 @@
   function init() {
     ownerNameEl.textContent = currentHorseOwner;
 
-    addMessage(
-      "ai",
-      `马到成功！我是 ${currentHorseOwner} 的 Horse AI 分身。很高兴见到你！\n你想对 ${currentHorseOwner} 说点什么新年祝福吗？`
-    );
-
+    // 不再自动显示开场白，只能通过发送按钮触发 AI 回复
     setupShareSection();
     setupInputEvents();
     connectWebSocket();
