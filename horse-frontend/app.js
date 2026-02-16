@@ -40,6 +40,7 @@
   let reconnectAttempts = 0;
   const maxReconnectAttempts = 3;
   const messages = [];
+  let autoGreetingSent = false; // 每个会话只自动触发一次拜年消息
 
   // 生成或恢复用户唯一 ID（保存在 localStorage，确保刷新后能恢复对话历史）
   function getOrCreateUid() {
@@ -247,22 +248,54 @@
       if (payload && payload.type === "res" && payload.ok === true && payload.payload && payload.payload.type === "hello-ok") {
         setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
         enableInput();
-        // 不再自动触发对话，只能通过发送按钮触发
-        return; // 不显示 hello-ok 消息给用户
+        // 每个会话只自动触发一次：发送一条消息让 AI 生成拜年语，作为第一条消息
+        if (!autoGreetingSent) {
+          autoGreetingSent = true;
+          setTimeout(() => {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+              const requestId = `greeting_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+              const idempotencyKey = `greeting_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+              socket.send(JSON.stringify({
+                type: "req",
+                id: requestId,
+                method: "chat.send",
+                params: {
+                  sessionKey: sessionKey,
+                  message: "你好",
+                  idempotencyKey: idempotencyKey,
+                },
+              }));
+            }
+          }, 400);
+        }
+        return;
       }
 
-      // 处理 chat.send 响应
-      if (payload && payload.type === "res" && payload.id && payload.id.startsWith("chat_send_")) {
-        console.log("chat.send 响应:", payload);
+      // 自动拜年请求的响应：不显示给用户，只用于触发「思考中」
+      if (payload && payload.type === "res" && payload.id && payload.id.startsWith("greeting_")) {
         if (payload.ok && payload.payload && payload.payload.status === "started") {
-          // AI 开始处理，显示"思考中"状态
-          setStatus("AI 正在思考中...", "thinking");
-          // 添加一个"思考中"的占位消息
+          setStatus("AI 正在生成拜年语...", "thinking");
           const thinkingMessage = {
             id: `thinking_${Date.now()}`,
             role: "ai",
             text: "思考中...",
-            thinking: true
+            thinking: true,
+          };
+          messages.push(thinkingMessage);
+          renderMessages();
+        }
+        return;
+      }
+
+      // 处理 chat.send 响应（用户点击发送触发的，非 greeting_）
+      if (payload && payload.type === "res" && payload.id && payload.id.startsWith("chat_send_")) {
+        if (payload.ok && payload.payload && payload.payload.status === "started") {
+          setStatus("AI 正在思考中...", "thinking");
+          const thinkingMessage = {
+            id: `thinking_${Date.now()}`,
+            role: "ai",
+            text: "思考中...",
+            thinking: true,
           };
           messages.push(thinkingMessage);
           renderMessages();
@@ -648,14 +681,7 @@
 
   function init() {
     ownerNameEl.textContent = currentHorseOwner;
-
-    // 显示引导消息，提示用户发送消息触发 AI 生成个性化拜年语
-    // 这不是 AI 自动生成的，而是静态的引导信息
-    addMessage(
-      "system",
-      `👋 欢迎来到 ${currentHorseOwner} 的 Horse 拜年分身！\n\n点击"发送"按钮，AI 会为你生成一句朗朗上口的个性化拜年语。`
-    );
-
+    // 打开即自动生成一条拜年消息（连接成功后自动触发一次），挂在第一条
     setupShareSection();
     setupInputEvents();
     connectWebSocket();
