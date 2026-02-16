@@ -235,6 +235,29 @@
       if (payload && payload.type === "res" && payload.ok === true && payload.payload && payload.payload.type === "hello-ok") {
         setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
         enableInput();
+        // 连接成功后，自动发送一条问候消息，触发 AI 生成个性化的开场拜年语
+        // 使用一个特殊的消息来触发开场白
+        setTimeout(() => {
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            const requestId = `greeting_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+            const idempotencyKey = `greeting_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+            const greetingPayload = {
+              type: "req",
+              id: requestId,
+              method: "chat.send",
+              params: {
+                sessionKey: sessionKey,
+                message: "你好", // 简单的问候，触发 AI 生成个性化拜年语
+                idempotencyKey: idempotencyKey,
+              },
+            };
+            try {
+              socket.send(JSON.stringify(greetingPayload));
+            } catch (error) {
+              console.error("发送问候消息失败", error);
+            }
+          }
+        }, 500); // 延迟 500ms 确保连接稳定
         return; // 不显示 hello-ok 消息给用户
       }
 
