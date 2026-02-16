@@ -96,6 +96,8 @@
         meta.className = `bubble-meta ${msg.role}`;
         meta.textContent = msg.role === "ai" ? "Horse 分身" : "你";
         bubble.appendChild(meta);
+      } else if (msg.role === "system") {
+        // 系统消息不显示 meta
       }
 
       const textNode = document.createElement("div");
@@ -647,7 +649,13 @@
   function init() {
     ownerNameEl.textContent = currentHorseOwner;
 
-    // 不再自动显示开场白，只能通过发送按钮触发 AI 回复
+    // 显示引导消息，提示用户发送消息触发 AI 生成个性化拜年语
+    // 这不是 AI 自动生成的，而是静态的引导信息
+    addMessage(
+      "system",
+      `👋 欢迎来到 ${currentHorseOwner} 的 Horse 拜年分身！\n\n点击"发送"按钮，AI 会为你生成一句朗朗上口的个性化拜年语。`
+    );
+
     setupShareSection();
     setupInputEvents();
     connectWebSocket();
