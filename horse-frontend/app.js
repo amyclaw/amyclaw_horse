@@ -10,30 +10,37 @@
   const currentLinkEl = document.getElementById("currentLink");
   const copyButtonEl = document.getElementById("copyButton");
 
-  // WebSocket 地址：根据当前访问域名自动判断
-  // 外网访问 horse.amyclaw.com 时使用 /ws 路径（由 Nginx 代理）
-  // 内网直接访问时使用内网地址
-  function getWebSocketUrl() {
-    const hostname = window.location.hostname;
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    
-    // 如果是外网域名 horse.amyclaw.com，使用相对路径 /ws（由 Nginx 代理）
-    if (hostname === 'horse.amyclaw.com' || hostname.includes('amyclaw.com')) {
-      return `${protocol}//${hostname}/ws`;
-    }
-    
-    // 内网访问时使用内网地址（开发环境）
-    return "ws://10.8.52.122:8080";
-  }
+  // 通过 Nginx 反向代理访问 WebSocket（/ws -> 127.0.0.1:2026）
+  // 使用当前页面的协议和主机，自动适配 http/https
+  // 优先使用公网域名 horse.amyclaw.com
+  const hostname = window.location.hostname;
+  // 如果当前访问的是 IP 地址，但公网域名已配置，使用域名
+  const wsHost = (hostname === '10.8.52.122' || hostname === '127.0.0.1') 
+    ? 'horse.amyclaw.com' 
+    : hostname;
   
-  const WS_BASE_URL = getWebSocketUrl();
+  // WebSocket 协议选择：
+  // - 如果当前是 HTTPS，尝试使用 wss://
+  // - 如果 wss:// 失败，可以降级到 ws://（如果外部代理支持）
+  // - 如果当前是 HTTP，使用 ws://
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const WS_BASE_URL = `${protocol}//${wsHost}/ws`;
 
   let socket = null;
   let reconnectAttempts = 0;
   const maxReconnectAttempts = 3;
   const messages = [];
 
-  const uid = generateUid();
+  // 生成或恢复用户唯一 ID（保存在 localStorage，确保刷新后能恢复对话历史）
+  function getOrCreateUid() {
+    const storageKey = `horse_uid_${currentHorseOwner}`;
+    let uid = localStorage.getItem(storageKey);
+    if (!uid) {
+      uid = generateUid();
+      localStorage.setItem(storageKey, uid);
+    }
+    return uid;
+  }
 
   function generateUid() {
     if (window.crypto && window.crypto.randomUUID) {
@@ -43,6 +50,13 @@
       .toString(16)
       .slice(2)}`;
   }
+
+  const uid = getOrCreateUid();
+  // 为每个用户创建唯一的 sessionKey（基于 ref 和 uid）
+  // 格式：agent:main:horse_<ref>_<uid>
+  // 这样每个用户访问同一个 ref 时会有独立的对话历史
+  // 刷新页面后，如果 uid 保存在 localStorage，可以恢复相同的 sessionKey，从而恢复对话历史
+  const sessionKey = `agent:main:horse_${currentHorseOwner}_${uid.slice(0, 8)}`;
 
   function setStatus(text, type) {
     statusEl.textContent = text;
@@ -76,6 +90,12 @@
 
       const textNode = document.createElement("div");
       textNode.textContent = msg.text;
+      // 如果是思考中状态，添加特殊样式
+      if (msg.thinking) {
+        textNode.className = "thinking-text";
+        textNode.style.opacity = "0.6";
+        textNode.style.fontStyle = "italic";
+      }
       bubble.appendChild(textNode);
 
       row.appendChild(bubble);
@@ -95,8 +115,21 @@
     sendButtonEl.disabled = false;
   }
 
-  function connectWebSocket() {
-    const url = `${WS_BASE_URL}?userId=${encodeURIComponent(
+  function connectWebSocket(useWss = null) {
+    // OpenClaw Gateway 需要 token 参数进行认证
+    // 如果 useWss 为 null，根据当前协议自动选择
+    // 如果 useWss 为 false，强制使用 ws://（用于降级）
+    let wsProtocol;
+    if (useWss === false) {
+      wsProtocol = 'ws:';
+    } else if (useWss === true) {
+      wsProtocol = 'wss:';
+    } else {
+      wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    }
+    
+    const wsUrl = `${wsProtocol}//${wsHost}/ws`;
+    const url = `${wsUrl}?token=horse2026&userId=${encodeURIComponent(
       uid
     )}&ref=${encodeURIComponent(currentHorseOwner)}`;
 
@@ -112,16 +145,252 @@
 
     socket.addEventListener("open", () => {
       reconnectAttempts = 0;
-      setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
-      enableInput();
+      setStatus(`正在完成连接握手...`, "connecting");
+      // 注意：实际的连接完成需要等待 challenge 响应
     });
 
     socket.addEventListener("message", (event) => {
       let payload;
       try {
         payload = JSON.parse(event.data);
+        // 调试：记录所有收到的消息
+        console.log("收到 WebSocket 消息:", payload);
       } catch (e) {
         // 非 JSON 则当作纯文本
+        console.log("收到非 JSON 消息:", event.data);
+      }
+
+      // 处理 OpenClaw Gateway 的 connect.challenge 事件
+      if (payload && payload.type === "event" && payload.event === "connect.challenge") {
+        // 响应 challenge：发送 connect 请求
+        // 需要通过服务器端 API 获取真实的设备签名
+        const nonce = payload.payload.nonce;
+        const timestamp = payload.payload.ts;
+        
+        // 从服务器获取设备签名
+        // 需要传递完整的连接参数以构建正确的 payload
+        fetch('/api/sign-device', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nonce: nonce,
+            timestamp: timestamp,
+            clientId: "cli",
+            clientMode: "cli",
+            role: "operator",
+            scopes: ["operator.read", "operator.write"],
+            token: "horse2026"
+          })
+        })
+        .then(res => res.json())
+        .then(deviceData => {
+          const connectRequest = {
+            type: "req",
+            id: `connect_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            method: "connect",
+            params: {
+              minProtocol: 3,
+              maxProtocol: 3,
+              client: {
+                id: "cli",
+                version: "1.0.0",
+                platform: "web",
+                mode: "cli",
+              },
+              role: "operator",
+              scopes: ["operator.read", "operator.write"],
+              caps: [],
+              commands: [],
+              permissions: {},
+              auth: {
+                token: "horse2026",
+              },
+              locale: "zh-CN",
+              userAgent: "Horse-Web/1.0.0",
+              device: {
+                id: deviceData.deviceId,
+                publicKey: deviceData.publicKey,
+                signature: deviceData.signature,
+                signedAt: deviceData.signedAt,
+                nonce: deviceData.nonce,
+              },
+            },
+          };
+          try {
+            socket.send(JSON.stringify(connectRequest));
+            setStatus(`正在完成连接握手...`, "connecting");
+          } catch (error) {
+            console.error("发送 connect 请求失败", error);
+          }
+        })
+        .catch(error => {
+          console.error("获取设备签名失败", error);
+          setStatus("获取设备签名失败，请稍后重试", "error");
+        });
+        
+        return; // 不显示 challenge 消息给用户
+      }
+
+      // 处理 connect 响应（连接成功）
+      if (payload && payload.type === "res" && payload.ok === true && payload.payload && payload.payload.type === "hello-ok") {
+        setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+        enableInput();
+        return; // 不显示 hello-ok 消息给用户
+      }
+
+      // 处理 chat.send 响应
+      if (payload && payload.type === "res" && payload.id && payload.id.startsWith("chat_send_")) {
+        console.log("chat.send 响应:", payload);
+        if (payload.ok && payload.payload && payload.payload.status === "started") {
+          // AI 开始处理，显示"思考中"状态
+          setStatus("AI 正在思考中...", "thinking");
+          // 添加一个"思考中"的占位消息
+          const thinkingMessage = {
+            id: `thinking_${Date.now()}`,
+            role: "ai",
+            text: "思考中...",
+            thinking: true
+          };
+          messages.push(thinkingMessage);
+          renderMessages();
+        }
+        return;
+      }
+
+      // 处理 chat 事件（AI 回复）
+      if (payload && payload.type === "event" && payload.event === "chat") {
+        const chatData = payload.payload;
+        console.log("收到 chat 事件:", chatData);
+        
+        // 移除"思考中"占位消息
+        const thinkingIndex = messages.findIndex(msg => msg.thinking);
+        if (thinkingIndex !== -1) {
+          messages.splice(thinkingIndex, 1);
+        }
+        
+        // 提取消息文本
+        let messageText = null;
+        if (chatData && chatData.message) {
+          const msg = chatData.message;
+          // 消息可能在 text 字段
+          if (msg.text) {
+            messageText = msg.text;
+          }
+          // 或者在 content 字段（可能是数组或字符串）
+          else if (msg.content) {
+            if (typeof msg.content === "string") {
+              messageText = msg.content;
+            } else if (Array.isArray(msg.content)) {
+              // content 可能是数组，提取文本部分
+              messageText = msg.content
+                .filter(item => item.type === "text" && item.text)
+                .map(item => item.text)
+                .join("\n");
+            }
+          }
+          // 或者 content 是纯文本
+          else if (typeof msg === "string") {
+            messageText = msg;
+          }
+        }
+        
+        // 如果是流式更新（delta），更新最后一条消息
+        if (chatData.state === "delta" && messageText) {
+          const lastMessage = messages[messages.length - 1];
+          if (lastMessage && lastMessage.role === "ai") {
+            lastMessage.text = messageText;
+            renderMessages();
+          } else {
+            addMessage("ai", messageText);
+          }
+          return;
+        }
+        
+        // 如果是最终消息（final），添加新消息
+        if (chatData.state === "final" && messageText) {
+          addMessage("ai", messageText);
+          setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+          return;
+        }
+        
+        // 如果没有 state，尝试直接提取
+        if (messageText) {
+          addMessage("ai", messageText);
+          setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+          return;
+        }
+      }
+
+      // 处理 agent 事件（AI 回复的另一种格式）
+      if (payload && payload.type === "event" && payload.event === "agent") {
+        const agentData = payload.payload;
+        console.log("收到 agent 事件:", agentData);
+        
+        // 只处理 assistant stream 类型的事件
+        if (agentData.stream === "assistant" && agentData.data) {
+          // 移除"思考中"占位消息
+          const thinkingIndex = messages.findIndex(msg => msg.thinking);
+          if (thinkingIndex !== -1) {
+            messages.splice(thinkingIndex, 1);
+          }
+          
+          // 提取文本内容
+          let text = null;
+          if (agentData.data.text) {
+            text = agentData.data.text;
+          } else if (agentData.data.content) {
+            if (typeof agentData.data.content === "string") {
+              text = agentData.data.content;
+            } else if (Array.isArray(agentData.data.content)) {
+              text = agentData.data.content
+                .filter(item => item.type === "text" && item.text)
+                .map(item => item.text)
+                .join("\n");
+            }
+          }
+          
+          if (text) {
+            // 流式更新最后一条 AI 消息
+            const lastMessage = messages[messages.length - 1];
+            if (lastMessage && lastMessage.role === "ai" && !lastMessage.thinking) {
+              lastMessage.text = text;
+              renderMessages();
+            } else {
+              addMessage("ai", text);
+            }
+            setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+          }
+          return;
+        }
+        
+        // 处理 lifecycle 事件（完成）
+        if (agentData.stream === "lifecycle" && agentData.data && agentData.data.status === "completed") {
+          setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+          return;
+        }
+      }
+
+      // 处理所有其他事件类型（调试用）
+      if (payload && payload.type === "event") {
+        console.log("收到未处理的事件:", payload.event, payload.payload);
+        // 尝试从 payload 中提取文本
+        if (payload.payload) {
+          const p = payload.payload;
+          if (p.text) {
+            addMessage("ai", p.text);
+            return;
+          }
+          if (p.message) {
+            addMessage("ai", p.message);
+            return;
+          }
+          if (typeof p === "string") {
+            addMessage("ai", p);
+            return;
+          }
+        }
+        // 如果无法提取，暂时忽略（避免显示错误消息）
+        return;
       }
 
       let role = "ai";
@@ -140,20 +409,36 @@
       }
 
       if (!text) {
-        text =
-          typeof event.data === "string"
-            ? event.data
-            : "[收到未知格式消息]";
+        // 对于未知格式，记录但不显示（避免干扰用户）
+        console.log("收到未知格式消息，已忽略:", payload);
+        return;
       }
 
       addMessage(role, text);
     });
 
-    socket.addEventListener("close", () => {
+    socket.addEventListener("close", (event) => {
+      // 如果是 wss:// 连接失败且错误码是协议错误，尝试降级到 ws://
+      if (wsProtocol === 'wss:' && event.code === 1002 && useWss !== false) {
+        console.log("wss:// 连接失败，尝试降级到 ws://");
+        socket = null;
+        setTimeout(() => connectWebSocket(false), 500);
+        return;
+      }
       handleSocketClose();
     });
 
-    socket.addEventListener("error", () => {
+    socket.addEventListener("error", (error) => {
+      // 如果是 wss:// 连接错误且还未尝试降级，尝试降级到 ws://
+      if (wsProtocol === 'wss:' && useWss !== false) {
+        console.log("wss:// 连接错误，尝试降级到 ws://", error);
+        if (socket) {
+          socket.close();
+          socket = null;
+        }
+        setTimeout(() => connectWebSocket(false), 500);
+        return;
+      }
       handleSocketError();
     });
   }
@@ -198,11 +483,19 @@
       return;
     }
 
+    // OpenClaw Gateway 消息格式：使用 chat.send 方法
+    const requestId = `chat_send_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    // idempotencyKey: 用于防止重复发送相同消息，使用时间戳+随机数确保唯一性
+    const idempotencyKey = `horse_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const payload = {
-      type: "user_message",
-      userId: uid,
-      ref: currentHorseOwner,
-      text,
+      type: "req",
+      id: requestId,
+      method: "chat.send",
+      params: {
+        sessionKey: sessionKey, // 每个用户独立的 session
+        message: text,
+        idempotencyKey: idempotencyKey, // 必需参数：防止重复发送
+      },
     };
 
     try {
