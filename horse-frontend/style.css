@@ -1,0 +1,345 @@
+:root {
+  --bg: #050816;
+  --bg-elevated: rgba(15, 23, 42, 0.92);
+  --bg-elevated-soft: rgba(15, 23, 42, 0.88);
+  --border-subtle: rgba(148, 163, 184, 0.3);
+  --accent: #f97316;
+  --accent-soft: rgba(248, 113, 113, 0.18);
+  --text: #e5e7eb;
+  --text-secondary: #9ca3af;
+  --danger: #f97373;
+  --success: #22c55e;
+  --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.9);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "PingFang SC", "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top, #1d2440 0%, #050816 55%, #020617 100%);
+  color: var(--text);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  min-height: 100vh;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(
+      135deg,
+      rgba(248, 113, 113, 0.08),
+      rgba(59, 130, 246, 0.08)
+    ),
+    rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(248, 113, 113, 0.28);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(16px);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 30% 0%, #f97316, #ea580c);
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.8),
+    0 0 40px rgba(248, 113, 113, 0.7);
+  font-size: 20px;
+}
+
+.brand-text .title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.brand-text .slogan {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.owner {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.owner-name {
+  color: #fbbf24;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+}
+
+.card {
+  border-radius: 18px;
+  background: var(--bg-elevated-soft);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-soft);
+  padding: 14px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.status-text {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.chat-messages {
+  margin-top: 4px;
+  padding: 10px 10px 8px;
+  border-radius: 14px;
+  background: radial-gradient(circle at top left, rgba(15, 118, 110, 0.32), transparent 50%),
+    rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(55, 65, 81, 0.9);
+  max-height: 420px;
+  min-height: 170px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.message-row {
+  display: flex;
+}
+
+.message-row.ai {
+  justify-content: flex-start;
+}
+
+.message-row.user {
+  justify-content: flex-end;
+}
+
+.bubble {
+  max-width: 80%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.bubble.ai {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(59, 130, 246, 0.26));
+  border: 1px solid rgba(59, 130, 246, 0.5);
+}
+
+.bubble.user {
+  background: linear-gradient(135deg, rgba(248, 113, 113, 0.3), rgba(234, 88, 12, 0.7));
+  border: 1px solid rgba(248, 113, 113, 0.7);
+}
+
+.bubble.system {
+  background: rgba(31, 41, 55, 0.9);
+  border: 1px dashed rgba(75, 85, 99, 0.9);
+  font-size: 12px;
+}
+
+.bubble-meta {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.bubble-meta.ai {
+  color: #bfdbfe;
+}
+
+.bubble-meta.user {
+  color: #fed7aa;
+}
+
+.chat-input {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.input {
+  flex: 1;
+  resize: none;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(75, 85, 99, 0.9);
+  background: rgba(15, 23, 42, 0.96);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.input:focus {
+  border-color: rgba(248, 113, 113, 0.8);
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.6);
+}
+
+.btn {
+  border: none;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.16s ease-out;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.primary-btn {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #0b1120;
+  box-shadow: 0 8px 20px rgba(248, 113, 113, 0.6);
+}
+
+.primary-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(248, 113, 113, 0.75);
+}
+
+.secondary-btn {
+  background: rgba(15, 23, 42, 0.96);
+  color: var(--text);
+  border: 1px solid rgba(148, 163, 184, 0.7);
+}
+
+.secondary-btn:hover:not(:disabled) {
+  background: rgba(30, 64, 175, 0.7);
+  border-color: rgba(191, 219, 254, 0.95);
+}
+
+.hint {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.share-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.share-link-wrapper {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.share-link {
+  flex: 1;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(55, 65, 81, 0.9);
+  background: rgba(15, 23, 42, 0.98);
+  color: #bfdbfe;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.share-link:hover {
+  text-decoration: underline;
+}
+
+.share-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 12px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(55, 65, 81, 0.9);
+}
+
+.footer {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .main {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .chat-card {
+    flex: 3;
+  }
+
+  .share-card {
+    flex: 2;
+  }
+}
+

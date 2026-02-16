@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Horse · 赛博拜年分身</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Horse · 赛博拜年分身：马到成功，分身拜年。" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="header">
+        <div class="brand">
+          <div class="logo">🐎</div>
+          <div class="brand-text">
+            <div class="title">Horse · 赛博拜年分身</div>
+            <div class="slogan">马到成功，分身拜年</div>
+          </div>
+        </div>
+        <div class="owner">
+          当前马主：
+          <span id="ownerName" class="owner-name">Admin</span>
+        </div>
+      </header>
+
+      <main class="main">
+        <section class="card chat-card">
+          <div class="card-header">
+            <div class="card-title">Horse 分身对话</div>
+            <div id="statusText" class="status-text">
+              正在准备连接马厩...
+            </div>
+          </div>
+
+          <div id="chatMessages" class="chat-messages"></div>
+
+          <div class="chat-input">
+            <textarea
+              id="messageInput"
+              class="input"
+              rows="2"
+              placeholder="写下你对马主的新年祝福..."
+            ></textarea>
+            <button id="sendButton" class="btn primary-btn">发送</button>
+          </div>
+          <div class="hint">
+            按 Enter 发送，Shift+Enter 换行
+          </div>
+        </section>
+
+        <section class="card share-card">
+          <div class="card-header">
+            <div class="card-title">创建你的专属拜年分身</div>
+          </div>
+          <p class="share-text">
+            想要自己的拜年分身？只需将本页链接中的
+            <code>ref=</code>
+            改成你的名字，然后发给你的朋友。
+          </p>
+          <div class="share-link-wrapper">
+            <a id="currentLink" class="share-link" href="#">加载中...</a>
+            <button id="copyButton" class="btn secondary-btn">复制链接</button>
+          </div>
+          <p class="share-hint">
+            示例：
+            <code>https://horse.amyclaw.com?ref=你的名字</code>
+          </p>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>Powered by Horse &amp; OpenClaw</span>
+      </footer>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+  </html>
+
