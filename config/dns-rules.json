@@ -1,0 +1,235 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2026-02-16T00:00:00Z",
+  "description": "DNS 规则配置表 - 根据服务器地理位置自动选择最近的 DNS 和 API 端点",
+  "channels": {
+    "feishu": {
+      "description": "飞书/Lark 服务端点配置",
+      "regions": {
+        "CN": {
+          "name": "中国大陆",
+          "country_code": "CN",
+          "api_domains": [
+            "open.feishu.cn",
+            "www.feishu.cn",
+            "internal-api-lark.feishu.cn"
+          ],
+          "dns_ips": [
+            "101.47.85.10",
+            "101.47.85.11"
+          ],
+          "api_base_url": "https://open.feishu.cn",
+          "websocket_url": "wss://open.feishu.cn",
+          "priority": 1
+        },
+        "HK": {
+          "name": "香港",
+          "country_code": "HK",
+          "api_domains": [
+            "open.feishu.cn",
+            "www.feishu.cn",
+            "internal-api-lark.feishu.cn"
+          ],
+          "dns_ips": [
+            "101.47.85.10",
+            "101.47.85.11"
+          ],
+          "api_base_url": "https://open.feishu.cn",
+          "websocket_url": "wss://open.feishu.cn",
+          "priority": 99,
+          "is_fallback": true,
+          "notes": {
+            "provider": "Byteplus Pte. Ltd. (字节跳动海外主体)",
+            "location": "香港九龙 (Kowloon, Hong Kong)",
+            "latency": "< 5ms",
+            "verified": true,
+            "description": "通用 fallback，当无法匹配其他地区时使用"
+          }
+        },
+        "SG": {
+          "name": "新加坡",
+          "country_code": "SG",
+          "api_domains": [
+            "open.larksuite.com",
+            "www.larksuite.com"
+          ],
+          "dns_ips": [
+            "103.129.221.xxx"
+          ],
+          "api_base_url": "https://open.larksuite.com",
+          "websocket_url": "wss://open.larksuite.com",
+          "priority": 3
+        },
+        "US": {
+          "name": "美国",
+          "country_code": "US",
+          "api_domains": [
+            "open.larksuite.com",
+            "www.larksuite.com"
+          ],
+          "dns_ips": [
+            "104.16.xxx.xxx"
+          ],
+          "api_base_url": "https://open.larksuite.com",
+          "websocket_url": "wss://open.larksuite.com",
+          "priority": 4
+        },
+        "JP": {
+          "name": "日本",
+          "country_code": "JP",
+          "api_domains": [
+            "open.larksuite.com",
+            "www.larksuite.com"
+          ],
+          "dns_ips": [
+            "103.129.221.xxx"
+          ],
+          "api_base_url": "https://open.larksuite.com",
+          "websocket_url": "wss://open.larksuite.com",
+          "priority": 5
+        }
+      },
+      "cross_region_rules": {
+        "CN": {
+          "allowed_regions": ["CN", "HK"],
+          "blocked_regions": ["US", "JP", "SG"]
+        },
+        "HK": {
+          "allowed_regions": ["HK", "CN", "SG"],
+          "blocked_regions": ["US"]
+        },
+        "SG": {
+          "allowed_regions": ["SG", "HK", "JP"],
+          "blocked_regions": ["CN", "US"]
+        },
+        "US": {
+          "allowed_regions": ["US", "SG"],
+          "blocked_regions": ["CN", "HK"]
+        },
+        "JP": {
+          "allowed_regions": ["JP", "SG", "HK"],
+          "blocked_regions": ["CN", "US"]
+        }
+      }
+    },
+    "telegram": {
+      "description": "Telegram 服务端点配置",
+      "regions": {
+        "CN": {
+          "name": "中国大陆",
+          "country_code": "CN",
+          "api_domains": [
+            "api.telegram.org",
+            "core.telegram.org"
+          ],
+          "dns_ips": [
+            "149.154.167.50",
+            "149.154.167.51"
+          ],
+          "api_base_url": "https://api.telegram.org",
+          "priority": 1
+        },
+        "HK": {
+          "name": "香港",
+          "country_code": "HK",
+          "api_domains": [
+            "api.telegram.org",
+            "core.telegram.org"
+          ],
+          "dns_ips": [
+            "149.154.167.50",
+            "149.154.167.51"
+          ],
+          "api_base_url": "https://api.telegram.org",
+          "priority": 2
+        },
+        "SG": {
+          "name": "新加坡",
+          "country_code": "SG",
+          "api_domains": [
+            "api.telegram.org",
+            "core.telegram.org"
+          ],
+          "dns_ips": [
+            "149.154.167.50",
+            "149.154.167.51"
+          ],
+          "api_base_url": "https://api.telegram.org",
+          "priority": 3
+        },
+        "US": {
+          "name": "美国",
+          "country_code": "US",
+          "api_domains": [
+            "api.telegram.org",
+            "core.telegram.org"
+          ],
+          "dns_ips": [
+            "149.154.167.50",
+            "149.154.167.51"
+          ],
+          "api_base_url": "https://api.telegram.org",
+          "priority": 4
+        }
+      },
+      "cross_region_rules": {
+        "CN": {
+          "allowed_regions": ["CN", "HK", "SG"],
+          "blocked_regions": ["US"]
+        },
+        "HK": {
+          "allowed_regions": ["HK", "CN", "SG"],
+          "blocked_regions": ["US"]
+        },
+        "SG": {
+          "allowed_regions": ["SG", "HK", "CN"],
+          "blocked_regions": ["US"]
+        },
+        "US": {
+          "allowed_regions": ["US", "SG"],
+          "blocked_regions": ["CN", "HK"]
+        }
+      }
+    }
+  },
+  "geoip_services": [
+    {
+      "name": "ip-api",
+      "url": "http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,city,lat,lon,query",
+      "timeout": 5000,
+      "priority": 1
+    },
+    {
+      "name": "ipapi",
+      "url": "https://ipapi.co/{ip}/json/",
+      "timeout": 5000,
+      "priority": 2
+    },
+    {
+      "name": "ipinfo",
+      "url": "https://ipinfo.io/{ip}/json",
+      "timeout": 5000,
+      "priority": 3
+    }
+  ],
+  "public_ip_services": [
+    {
+      "name": "ifconfig.me",
+      "url": "https://ifconfig.me/ip",
+      "timeout": 3000,
+      "priority": 1
+    },
+    {
+      "name": "api.ipify",
+      "url": "https://api.ipify.org?format=json",
+      "timeout": 3000,
+      "priority": 2
+    },
+    {
+      "name": "icanhazip",
+      "url": "https://icanhazip.com",
+      "timeout": 3000,
+      "priority": 3
+    }
+  ]
+}

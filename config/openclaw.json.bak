@@ -1,0 +1,149 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.1.29",
+    "lastTouchedAt": "2026-02-14T08:46:19.644Z"
+  },
+  "browser": {
+    "enabled": true,
+    "remoteCdpTimeoutMs": 15000,
+    "remoteCdpHandshakeTimeoutMs": 30000,
+    "attachOnly": true,
+    "defaultProfile": "remote",
+    "profiles": {
+      "remote": {
+        "cdpUrl": "http://amyclaw-browser:9222",
+        "color": "#00AA00"
+      },
+      "openclaw": {
+        "cdpUrl": "http://amyclaw-browser:9222",
+        "color": "#00AA00"
+      }
+    }
+  },
+  "models": {
+    "providers": {
+      "google": {
+        "baseUrl": "https://api.idatabase.ai/v1beta",
+        "apiKey": "sk-jR00UoXaswZQJmYdgR7niTCfmMXDmiDdvDYmXZsmVitFqkAA",
+        "api": "google-generative-ai",
+        "models": [
+          {
+            "id": "gemini-3-flash-preview",
+            "name": "Gemini-3-flash-preview",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "google/gemini-3-flash-preview"
+      },
+      "workspace": "/home/node/.openclaw/workspace",
+      "memorySearch": {
+        "provider": "openai",
+        "remote": {
+          "baseUrl": "http://10.8.52.108:8001/v1/",
+          "apiKey": ""
+        },
+        "model": "embedding"
+      },
+      "compaction": {
+        "mode": "safeguard"
+      },
+      "elevatedDefault": "full",
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
+      }
+    }
+  },
+  "tools": {
+    "elevated": {
+      "enabled": true,
+      "allowFrom": {
+        "telegram": [
+          7724048907
+        ],
+        "feishu": [
+          "ou_b72eba2fb851474c165b6fa148d9b49a"
+        ]
+      }
+    }
+  },
+  "messages": {
+    "ackReactionScope": "group-mentions"
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "dmPolicy": "pairing",
+      "botToken": "8390582510:AAG15OW_Pf1HwpvPOFXP_uS_bhSvfhMzEmk",
+      "allowFrom": [
+        7724048907
+      ],
+      "groupPolicy": "allowlist",
+      "streamMode": "partial"
+    },
+    "feishu": {
+      "enabled": true,
+      "dmPolicy": "open",
+      "verificationToken": "LwlvYWKZsieCPtLm7Uqv9fxxAAJ8113I",
+      "groupPolicy": "open",
+      "accounts": {
+        "default": {
+          "appId": "cli_a919afd2fd389bef",
+          "appSecret": "cmIJ3X8zKqR2bDYq4GkohcW8HfSQrJ1p"
+        }
+      }
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "controlUi": {
+      "enabled": true,
+      "allowInsecureAuth": true,
+      "dangerouslyDisableDeviceAuth": true
+    },
+    "auth": {
+      "mode": "token",
+      "token": "openclaw20260207"
+    },
+    "trustedProxies": [
+      "10.8.0.0/16",
+      "172.17.0.0/16",
+      "172.18.0.0/16",
+      "172.19.0.0/16",
+    ],
+    "nodes": {
+      "browser": {
+        "mode": "auto"
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "telegram": {
+        "enabled": true
+      }
+    }
+  }
+}

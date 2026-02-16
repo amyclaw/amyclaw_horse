@@ -1,0 +1,113 @@
+services:
+  # 1. OpenClaw 主程序
+  amyclaw-gateway:
+    image: ghcr.io/phioranex/openclaw-docker:latest
+    container_name: amyclaw-gateway
+    restart: always
+    working_dir: /home/node
+    # 镜像默认 ENTRYPOINT 会把 command 当作 openclaw 子命令，故用 entrypoint 覆盖为 sh，在 shell 里先复制 SDK 再启动 gateway
+    entrypoint: ["sh", "-c"]
+    # 启动前：统一安装所有扩展和技能的依赖（feishu SDK、playwright-core等）
+    # 使用 scripts/install-docker-dependencies.sh 一次性安装所有依赖，避免启动时动态安装
+    command:
+      - |
+        # 修复权限问题（device-auth.json 等文件）
+        if [ -f /home/node/.openclaw/identity/device-auth.json ]; then
+          chown node:node /home/node/.openclaw/identity/device-auth.json 2>/dev/null || true
+        fi
+        # DNS 自动检测和配置（根据服务器地理位置选择最近的 DNS/机房）
+        if [ -f /home/node/jim/scripts/init-dns.js ]; then
+          echo "=== DNS 自动检测和配置 ==="
+          node /home/node/jim/scripts/init-dns.js || echo "DNS 初始化失败，继续启动..."
+        fi
+        # 统一安装所有依赖（扩展和技能）
+        if [ -f /home/node/jim/scripts/install-docker-dependencies.sh ]; then
+          echo "=== 安装所有Docker依赖 ==="
+          bash /home/node/jim/scripts/install-docker-dependencies.sh || echo "依赖安装失败，继续启动..."
+        fi
+        # 使用全新的网关端口，避免与 A/B 环境及 3000-3100 端口段冲突
+        exec node /app/dist/index.js gateway --bind lan --port 3202 --token openclaw20260207 --allow-unconfigured
+    environment:
+      - NODE_ENV=production
+      # 强制使用挂载的配置目录（确保读取 config 下的 openclaw.json）
+      - OPENCLAW_HOME=/home/node
+      - OPENCLAW_STATE_DIR=/home/node/.openclaw
+      - OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json
+      - OPENCLAW_GATEWAY_AUTH_TOKEN=openclaw20260207
+      - OPENCLAW_GATEWAY_URL=wss://amy.amyclaw.com
+      - GATEWAY_URL=wss://amy.amyclaw.com
+      # 与上方 gateway --port 保持一致，使用新的 3202 端口
+      - OPENCLAW_GATEWAY_PORT=3202
+      # 信任 Nginx 等代理（Docker 网段 172.17/172.18），避免 "Proxy headers detected from untrusted address"
+      - OPENCLAW_GATEWAY_TRUSTED_PROXIES=10.8.0.0/16,172.17.0.0/16,172.18.0.0/16,172.19.0.0/16,0.0.0.0/0
+      # HTTP 下允许仅用 token 认证，避免 "control ui requires HTTPS or localhost"
+      - OPENCLAW_GATEWAY_CONTROL_UI_ALLOW_INSECURE_AUTH=true
+      - OPENCLAW_GATEWAY_CONTROL_UI_DANGEROUSLY_DISABLE_DEVICE_AUTH=true
+      # 浏览器 profile 直接用配置文件里的 `browser.profiles.remote.cdpUrl`，避免与内部端口探测冲突
+      # 默认 profile 已在 config/openclaw.json 中设为 "remote"
+      # memory_search 使用 OpenAI 兼容的 embedding API；本地向量服务无需真实 key，设 dummy 通过校验
+      - OPENAI_API_KEY=dummy
+    networks:
+      - amyclaw-bridge
+    volumes:
+      - ./config:/home/node/.openclaw
+      - ./data:/app/data
+      # 1. 保持 jim 目录作为纯代码和配置目录
+      - /mnt/disk/amyclaw/jim:/home/node/jim
+      # 2. 将数据目录挂载到容器内的 jim 子目录（适配 NFS 挂载：10.8.52.30:/mnt/disk/amyclaw/jim -> /mnt/disk/amyclaw/data）
+      #    宿主机 /mnt/disk/amyclaw/data 直接包含 cache/, openclaw-sessions/ 等，映射到容器内 /home/node/data/jim/
+      - /mnt/disk/amyclaw/data:/home/node/data/jim
+      # 3. 会话日志放在 data 盘，不随 config 进 git，覆盖 .openclaw 下的 sessions
+      #    宿主机 /mnt/disk/amyclaw/data/openclaw-sessions 映射到容器内会话目录
+      - /mnt/disk/amyclaw/data/openclaw-sessions:/home/node/.openclaw/agents/main/sessions
+      # 挂载所有 skills 到 OpenClaw skills 目录（统一管理所有技能）
+      - ./skill:/home/node/.openclaw/skills
+    depends_on:
+      - amyclaw-browser
+
+  # 2. [新增] 无头浏览器服务 (Sidecar)
+  amyclaw-browser:
+    image: ghcr.io/browserless/chromium:latest
+    container_name: amyclaw-browser
+    restart: always
+    environment:
+      # 使用 9222 避免 OpenClaw 将“端口 3000”误判为自家 browser control 而拒绝连接
+      - "PORT=9222"
+      # 连接超时（毫秒），使用新的 TIMEOUT 变量名（已弃用 CONNECTION_TIMEOUT）
+      # 注意：-1 会被 Node.js 解析为负数，导致超时设为 1ms，立即超时
+      # 使用大数值表示长超时（60秒 = 60000ms）
+      - "TIMEOUT=60000"
+      # 并发会话数，使用新的 CONCURRENT 变量名（已弃用 MAX_CONCURRENT_SESSIONS）
+      - "CONCURRENT=10"
+      # 持久化 session：断开后允许在指定时间内重连（毫秒），不设则默认 Infinity
+      - "MAX_RECONNECT_TIME=300000"
+      # 默认启动参数（通过 LAUNCH_ARGS 配置，已弃用 DEFAULT_LAUNCH_ARGS）
+      # 设置更大的窗口大小以确保完整截图（1920x1080）
+      - 'LAUNCH_ARGS=["--window-size=1920,1080","--disable-gpu","--no-sandbox","--disable-dev-shm-usage"]'
+      # 健康失败时主动退出，配合 restart: always 由 Docker 自动拉起重启（避免"过一阵就挂"需手动重启）
+      - "EXIT_ON_HEALTH_FAILURE=true"
+      # 队列过长时拒绝新请求，避免雪崩（可选调大）
+      - "MAX_QUEUE_LENGTH=10"
+    networks:
+      - amyclaw-bridge
+    # 仅在调试时需要暴露端口，生产环境可注释掉 ports
+    # ports:
+    #   - "9223:3000"
+
+  # 3. Nginx 转发（宿主机端口 3012 与 nginx-agent/jim.amyclaw.ai.conf 中 proxy_pass 一致，不修改 152 配置）
+  amyclaw-nginx:
+    image: nginx:alpine
+    container_name: amyclaw-nginx
+    restart: always
+    ports:
+      - "3012:80"
+    depends_on:
+      - amyclaw-gateway
+    networks:
+      - amyclaw-bridge
+    volumes:
+      - ./nginx/nginx_proxy.conf:/etc/nginx/conf.d/default.conf:ro
+
+networks:
+  amyclaw-bridge:
+    driver: bridge

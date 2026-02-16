@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "profiles": {
+    "openai:default": {
+      "type": "api_key",
+      "provider": "openai",
+      "key": "dummy"
+    }
+  },
+  "usageStats": {}
+}

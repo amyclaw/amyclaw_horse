@@ -1,0 +1,80 @@
+# rsync 排除文件 - 部署到 10.8.52.122 时排除记忆和数据
+
+# Git 相关
+.git/
+.gitignore
+
+# 数据目录（NFS 挂载，不包含在代码仓库）
+data/
+namedata/
+musicdata/
+testdata/
+
+# 日志目录
+log/
+logs/
+*.log
+
+# Agent 记忆文件（按日期的记忆，不包含配置）
+# 排除按日期的记忆文件，但保留配置类文件（network_map.json, storage_rules.md 等）
+config/workspace/memory/20*.md
+config/workspace/memory/*_creds.md
+amyclaw_repo/memory/
+
+# 会话和运行时数据
+config/agents/main/sessions
+sessions/
+cache/
+
+# 软链接的持久化数据（已移至 data/）
+config/media
+config/extensions
+
+# 临时和测试目录
+google/
+mkdir/
+mv/
+test/
+test-scripts/
+testdata/
+
+# 二进制、图片、数据库
+*.db
+*.bak
+*.zip
+*.tar.gz
+*.7z
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# 环境和锁文件（可重新安装）
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.lock
+.DS_Store
+
+# 文档和临时文件
+# 排除根目录的 .md，但保留 skill、config/workspace、docs 下的文档
+*.md
+!skill/**/*.md
+!config/workspace/*.md
+!config/workspace/memory/storage_rules.md
+!config/workspace/memory/google_skill_set.md
+!config/workspace/memory/group_definitions.md
+!docs/**/*.md
+!README*.md
+
+# 其他临时文件
+*.tmp
+*.swp
+*.swo
+*~

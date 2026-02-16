@@ -1,0 +1,26 @@
+{
+  "name": "playwright-heavy-scraper",
+  "version": "1.0.0",
+  "description": "Large-scale web scraping skill using Playwright via CDP connection to Sidecar browser container",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "playwright",
+    "scraping",
+    "cdp",
+    "openclaw",
+    "skill"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "playwright-core": "^1.58.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

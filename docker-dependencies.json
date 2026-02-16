@@ -1,0 +1,35 @@
+{
+  "description": "Docker容器启动时需要安装的所有依赖包",
+  "extensions": {
+    "feishu": {
+      "package": "@larksuiteoapi/node-sdk",
+      "version": "^1.58.0",
+      "path": "/home/node/.openclaw/extensions/feishu",
+      "description": "飞书插件SDK - 用于飞书WebSocket/Webhook连接"
+    }
+  },
+  "skills": {
+    "playwright-heavy-scraper": {
+      "dependencies": {
+        "playwright-core": "^1.58.2"
+      },
+      "devDependencies": {
+        "@types/node": "^20.0.0",
+        "typescript": "^5.0.0"
+      },
+      "path": "/home/node/.openclaw/skills/playwright-heavy-scraper",
+      "description": "大规模网页抓取技能 - 通过CDP连接浏览器容器"
+    }
+  },
+  "global": {
+    "description": "全局安装的依赖（在/app目录）",
+    "dependencies": {
+      "@larksuiteoapi/node-sdk": "^1.58.0"
+    }
+  },
+  "versions": {
+    "openclaw": "2026.1.29",
+    "feishu-plugin": "0.3.1",
+    "node": ">=20.0.0"
+  }
+}

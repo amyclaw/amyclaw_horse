@@ -1,0 +1,27 @@
+{
+  "providers": {
+    "google": {
+      "baseUrl": "https://api.idatabase.ai/v1beta",
+      "apiKey": "sk-jR00UoXaswZQJmYdgR7niTCfmMXDmiDdvDYmXZsmVitFqkAA",
+      "api": "google-generative-ai",
+      "models": [
+        {
+          "id": "gemini-3-flash-preview",
+          "name": "Gemini-3-flash-preview",
+          "reasoning": false,
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 200000,
+          "maxTokens": 8192
+        }
+      ]
+    }
+  }
+}
