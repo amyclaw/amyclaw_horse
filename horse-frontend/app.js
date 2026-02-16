@@ -30,6 +30,7 @@
   let reconnectAttempts = 0;
   const maxReconnectAttempts = 3;
   const messages = [];
+  let autoGreetingSent = false; // 标记是否已发送自动问候（用于触发开场白）
 
   // 生成或恢复用户唯一 ID（保存在 localStorage，确保刷新后能恢复对话历史）
   function getOrCreateUid() {
@@ -237,28 +238,38 @@
         enableInput();
         // 连接成功后，自动发送一条问候消息，触发 AI 生成个性化的开场拜年语
         // 使用一个特殊的消息来触发开场白
-        setTimeout(() => {
-          if (socket && socket.readyState === WebSocket.OPEN) {
-            const requestId = `greeting_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-            const idempotencyKey = `greeting_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-            const greetingPayload = {
-              type: "req",
-              id: requestId,
-              method: "chat.send",
-              params: {
-                sessionKey: sessionKey,
-                message: "你好", // 简单的问候，触发 AI 生成个性化拜年语
-                idempotencyKey: idempotencyKey,
-              },
-            };
-            try {
-              socket.send(JSON.stringify(greetingPayload));
-            } catch (error) {
-              console.error("发送问候消息失败", error);
+        if (!autoGreetingSent) {
+          autoGreetingSent = true;
+          setTimeout(() => {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+              const requestId = `greeting_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+              const idempotencyKey = `greeting_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+              const greetingPayload = {
+                type: "req",
+                id: requestId,
+                method: "chat.send",
+                params: {
+                  sessionKey: sessionKey,
+                  message: "你好", // 简单的问候，触发 AI 生成个性化拜年语
+                  idempotencyKey: idempotencyKey,
+                },
+              };
+              try {
+                socket.send(JSON.stringify(greetingPayload));
+                console.log("已发送自动问候，触发 AI 生成开场拜年语");
+              } catch (error) {
+                console.error("发送问候消息失败", error);
+              }
             }
-          }
-        }, 500); // 延迟 500ms 确保连接稳定
+          }, 500); // 延迟 500ms 确保连接稳定
+        }
         return; // 不显示 hello-ok 消息给用户
+      }
+
+      // 忽略自动问候的响应（不显示给用户）
+      if (payload && payload.type === "res" && payload.id && payload.id.startsWith("greeting_")) {
+        console.log("自动问候响应（已忽略）:", payload);
+        return; // 不显示自动问候的响应
       }
 
       // 处理 chat.send 响应
