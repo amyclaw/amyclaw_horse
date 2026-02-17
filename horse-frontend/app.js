@@ -42,6 +42,12 @@
   let simpleModeTimer = null; // open 后若未收到 connect.challenge 则切到 simple
   let fallbackToSimple = false; // 网关 connect 被拒或超时后自动改用 /horse-ws，由 horse-agent 提供开屏词和 AI 回复
 
+  // 兜底拜年语（与后端 horse-server 一致）：收不到或空内容时显示
+  function getFallbackGreeting(masterName) {
+    const name = (masterName && String(masterName).trim()) || "马主";
+    return `${name} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
+  }
+
   // 生成或恢复用户唯一 ID（保存在 localStorage，确保刷新后能恢复对话历史）
   function getOrCreateUid() {
     const storageKey = `horse_uid_${currentHorseOwner}`;
@@ -213,10 +219,11 @@
       setStatus(`正在完成连接握手...`, "connecting");
     });
 
-    socket.addEventListener("message", (event) => {
+    socket.addEventListener("message", async (event) => {
       let payload;
       try {
-        payload = JSON.parse(event.data);
+        const rawData = typeof event.data === "string" ? event.data : (event.data instanceof Blob ? await event.data.text() : String(event.data));
+        payload = JSON.parse(rawData);
         // 调试：记录所有收到的消息
         console.log("收到 WebSocket 消息:", payload);
       } catch (e) {
@@ -227,7 +234,8 @@
       // 优先处理 simple 协议的 ai_message，确保 AI 生成内容能替换预填并显示
       if (payload && payload.type === "ai_message") {
         let raw = (typeof payload.text === "string" && payload.text.trim()) || (typeof payload.content === "string" && payload.content.trim()) || (payload.payload && typeof payload.payload.text === "string" && payload.payload.text.trim()) || "";
-        const text = raw || `${currentHorseOwner} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
+        if (!raw && payload.text != null) raw = String(payload.text).trim();
+        const text = raw || getFallbackGreeting(currentHorseOwner);
         const preFilledIdx = messages.findIndex(m => m.role === "ai" && m.preFilled);
         if (preFilledIdx !== -1) {
           const invalidFirstReply = /^(no|nope|不|拒绝)$/i.test(text) || (text.length > 0 && text.length < 8);
@@ -540,7 +548,7 @@
         if (payload.type === "ai_message") {
           let raw = typeof payload.text === "string" ? payload.text : "";
           if (!raw && typeof payload.content === "string") raw = payload.content;
-          text = (raw && raw.trim()) || `${currentHorseOwner} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
+          text = (raw && raw.trim()) || getFallbackGreeting(currentHorseOwner);
           role = "ai";
           const preFilledIdx = messages.findIndex(m => m.role === "ai" && m.preFilled);
           if (preFilledIdx !== -1) {
@@ -571,7 +579,7 @@
       }
       // ai_message 允许空字符串时显示兜底拜年语
       if (role === "ai" && !String(text).trim()) {
-        text = `${currentHorseOwner} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
+        text = getFallbackGreeting(currentHorseOwner);
       }
 
       addMessage(role, text);

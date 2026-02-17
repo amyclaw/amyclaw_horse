@@ -18,7 +18,7 @@
     ],
     "tokens": {
       "operator": {
-        "token": "39sFgbW9OalmuYh_LJeuu-QemLNx54n3FKp-aKnrvzY",
+        "token": "-h531oECDv-6kW-PQbh51m8QNNxyWu96-yqO6cjiiBY",
         "role": "operator",
         "scopes": [
           "operator.admin",
@@ -26,7 +26,7 @@
           "operator.write"
         ],
         "createdAtMs": 1770924629135,
-        "rotatedAtMs": 1771306525090,
+        "rotatedAtMs": 1771311236873,
         "lastUsedAtMs": 1771243256834
       }
     },

@@ -108,6 +108,7 @@ docker exec horse-server node /app/test-ws.js 127.0.0.1
 | pairing required | device 未配对或配对信息与当前 connect 不符 | 见下方「排查 pairing required」；或补全 config/devices/paired.json 后**重启 amyclaw-gateway** |
 | gateway chat timeout | 先前的 connect 失败（如 pairing required）导致无完整 scope，或 AI 响应过慢 | 先解决 pairing，再观察；必要时调大 horse-server 内 chat 超时（当前 60s） |
 | 收到兜底文案 | connect 未就绪或 chat.send 失败 | 查 horse-server 日志，按上面几项逐项核对 |
+| 首屏出现「我是 Amy」「有什么可以帮你的吗」 | 非 fallback；网关有返回，但模型未遵守 horse_logic 首屏拜年语 | 属模型/技能表现问题；fallback 仅指「马主 给您拜年啦！衷心祝愿…」那段；可加强 horse_logic 首屏约束并重试 |
 
 **排查 pairing required（在部署机 x1 上执行）：**
 
@@ -172,7 +173,20 @@ docker logs -f horse-server 2>&1 | grep -E "user_message|ai_message"
 
 ---
 
-## 五、相关文档
+## 五、部署与 push：避免覆盖 key 导致 AI 互动失败
+
+- **原因**：只要把**本机**的 `config/identity/`、`config/devices/` **覆盖到服务器**（例如 deploy 时 rsync 全量同步、或 git pull 用仓库覆盖），就会把服务器当前在用的 key/配对替换掉；网关可能已在运行时轮换过 token，覆盖后 sign-device 与网关不一致 → **pairing required / invalid connect** → **AI 互动失效**。  
+  **只做「部署 + push」、不做 pull，也会失效**——因为失效来自「部署时把本地配置同步到服务器」，不是来自 pull。
+- **正确做法**：
+  - **部署到服务器**时，必须**不覆盖**服务器上的 `config/identity/`、`config/devices/`。推荐：
+    - 使用脚本：`bash scripts/deploy-to-server.sh user@host:/path/to/jim`（内部用 `rsync --exclude-from=rsync-exclude.txt`，已排除上述目录）。
+    - 或自行 rsync 时加上：`--exclude-from=rsync-exclude.txt`，确保不覆盖 identity 与 devices。
+  - 若用 **git pull 部署**：pull 后不要用仓库版本覆盖服务器上的 `config/identity/`、`config/devices/`；或 pull 后从备份恢复这两处再重启。
+- 若部署/push 后 AI 互动突然失败，先确认服务器上 `config/identity/`、`config/devices/` 是否被覆盖，deviceId 与 paired 是否一致，必要时重启网关并核对 token（见 3.2 排查 pairing required）。
+
+---
+
+## 六、相关文档
 
 - 协议与合规：`docs/OPENCLAW_FRONTEND_INTEGRATION.md`
 - 设备与签名排查：`docs/HORSE_GATEWAY_DEVICE_CHECK.md`

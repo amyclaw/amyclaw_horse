@@ -26,6 +26,10 @@ config/agents/main/sessions
 sessions/
 cache/
 
+# 设备与配对（服务器运行时可能被网关轮换 token，覆盖会导致 AI 互动失败）
+config/identity/
+config/devices/
+
 # 软链接的持久化数据（已移至 data/）
 config/media
 config/extensions

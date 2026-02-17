@@ -13,6 +13,12 @@ const GATEWAY_WS_URL = process.env.GATEWAY_WS_URL || "ws://amyclaw-gateway:3202"
 const GATEWAY_AUTH_TOKEN = process.env.GATEWAY_AUTH_TOKEN || "openclaw20260207";
 const SIGN_DEVICE_URL = process.env.SIGN_DEVICE_URL || ""; // 若网关发 connect.challenge 则需填，如 http://host.docker.internal:3020
 
+// 兜底拜年语（与前端一致）：网关失败或首屏非拜年语时使用，保证客户端一定能收到拜年词
+function getFallbackText(masterName) {
+  const name = (masterName && String(masterName).trim()) || "马主";
+  return `${name} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
+}
+
 // 网关 sessionKey 格式（与前端一致）
 function gatewaySessionKey(ref, userId) {
   const r = (ref && ref.trim()) || "Admin";
@@ -268,8 +274,7 @@ wss.on("connection", (ws, req) => {
         ? `[首屏]\n（当前马主：${refFromMsg}）`
         : text;
 
-    const name = refFromMsg && refFromMsg.trim() ? refFromMsg.trim() : "马主";
-    const fallback = `${name} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
+    const fallback = getFallbackText(refFromMsg);
 
     let reply;
     let fromGateway = false;
@@ -281,10 +286,19 @@ wss.on("connection", (ws, req) => {
       reply = fallback;
     }
 
-    const aiText = (reply && String(reply).trim()) ? reply : fallback;
-    send({ type: "ai_message", text: aiText });
+    let aiText = (reply && String(reply).trim()) ? reply : fallback;
+    // 首屏若网关返回的是通用助理开场（非拜年语），改用 fallback 拜年词，保证首屏一定是拜年语
+    const isFirstScreen = !text || text === "[首屏]";
+    const looksLikeGenericIntro = /(我是|我是你的?).*AI\s*助理\s*Amy|有什么(我可以帮|可以帮您|需要我处理)|想聊的话题|需要我处理的任务/i.test(aiText);
+    const looksLikeProperFirstScreen = /(给您拜年|拜年了|祝您和您的家人|你想对\s*\S+\s*说点什么新年祝福)/i.test(aiText);
+    if (isFirstScreen && looksLikeGenericIntro && !looksLikeProperFirstScreen) {
+      aiText = fallback;
+      fromGateway = false;
+    }
+    if (!aiText || !String(aiText).trim()) aiText = fallback;
+    send({ type: "ai_message", text: String(aiText) });
     // AI 回复滚动日志；source=gateway 表示来自 AI，source=fallback 表示走兜底
-    console.log("[horse-ws] ai_message", refFromMsg, userId || "-", fromGateway ? "source=gateway" : "source=fallback", aiText.slice(0, 60));
+    console.log("[horse-ws] ai_message", refFromMsg, userId || "-", fromGateway ? "source=gateway" : "source=fallback", aiText.length > 200 ? aiText.slice(0, 200) + "…" : aiText);
   });
 
   ws.on("close", () => {});
