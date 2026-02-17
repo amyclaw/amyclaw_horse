@@ -223,7 +223,7 @@ body {
   border: 1px solid rgba(75, 85, 99, 0.9);
   background: rgba(15, 23, 42, 0.96);
   color: var(--text);
-  font-size: 13px;
+  font-size: 16px; /* 至少 16px 避免移动端聚焦时浏览器自动放大页面 */
   outline: none;
 }
 

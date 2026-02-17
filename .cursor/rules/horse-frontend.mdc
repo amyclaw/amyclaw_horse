@@ -1,0 +1,10 @@
+---
+description: Horse 前端修改后自动发布到公测
+globs: horse-frontend/**
+---
+
+# Horse 前端
+
+- 修改 `horse-frontend/` 下任何文件后，**必须执行发布**到公测目录，否则 horse.amyclaw.com 不会更新。
+- 发布命令：`bash scripts/publish-horse-web.sh` 或 `cp -r horse-frontend/* /mnt/disk/amyclaw/data/jim/horse/www/`
+- 每次改完 horse-frontend 并确认无语法错误后，请运行上述发布命令。

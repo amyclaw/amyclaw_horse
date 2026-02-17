@@ -121,7 +121,7 @@
     "controlUi": {
       "enabled": true,
       "allowInsecureAuth": true,
-      "dangerouslyDisableDeviceAuth": true
+      "dangerouslyDisableDeviceAuth": false
     },
     "auth": {
       "mode": "token",
