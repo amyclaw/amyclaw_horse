@@ -1,11 +1,8 @@
 (() => {
   const urlParams = new URLSearchParams(window.location.search);
   const currentHorseOwner = urlParams.get("ref") || "Admin";
-  
-  // 更新右上角显示的名字
-  if (ownerNameEl) {
-    ownerNameEl.textContent = currentHorseOwner;
-  }
+  // 默认走简单协议 /horse-ws；仅当显式传 proto=gateway 时走网关 /ws
+  const forceSimple = urlParams.get("proto") !== "gateway";
 
   const ownerNameEl = document.getElementById("ownerName");
   const statusEl = document.getElementById("statusText");
@@ -41,6 +38,9 @@
   const maxReconnectAttempts = 3;
   const messages = [];
   let autoGreetingSent = false; // 每个会话只自动触发一次拜年消息
+  let wsMode = null; // 'gateway' | 'simple'，null=未确定。simple 即 fd33ec1 的 horse-agent 协议（open 即连，user_message/ai_message）
+  let simpleModeTimer = null; // open 后若未收到 connect.challenge 则切到 simple
+  let fallbackToSimple = false; // 网关 connect 被拒或超时后自动改用 /horse-ws，由 horse-agent 提供开屏词和 AI 回复
 
   // 生成或恢复用户唯一 ID（保存在 localStorage，确保刷新后能恢复对话历史）
   function getOrCreateUid() {
@@ -74,12 +74,20 @@
     statusEl.dataset.type = type || "";
   }
 
-  function addMessage(role, text) {
-    messages.push({
+  /** 按 horse_logic 规则生成预填拜年语：50 字内、以 ref 为主语、含引导句 */
+  function getPreFillGreeting(ref) {
+    const name = (ref && String(ref).trim()) || "马主";
+    return `${name}给您拜年了！祝您和您的家人龙年大吉、万事如意。你想对 ${name} 说点什么新年祝福吗？`;
+  }
+
+  function addMessage(role, text, options) {
+    const msg = {
       id: Date.now() + Math.random().toString(16).slice(2),
       role,
       text,
-    });
+    };
+    if (options && options.preFilled) msg.preFilled = true;
+    messages.push(msg);
     renderMessages();
   }
 
@@ -141,10 +149,13 @@
       wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     }
     
-    const wsUrl = `${wsProtocol}//${wsHost}/ws`;
-    const url = `${wsUrl}?token=horse2026&userId=${encodeURIComponent(
-      uid
-    )}&ref=${encodeURIComponent(currentHorseOwner)}`;
+    const useSimple = forceSimple || fallbackToSimple;
+    // 简单模式用 /horse-ws，避免被 location /ws 前缀匹配到网关（3012）；服务器必须有 location /horse-ws -> 2026
+    const wsPath = useSimple ? "/horse-ws" : "/ws";
+    const wsUrl = `${wsProtocol}//${wsHost}${wsPath}`;
+    const url = useSimple
+      ? `${wsUrl}?userId=${encodeURIComponent(uid)}&ref=${encodeURIComponent(currentHorseOwner)}`
+      : `${wsUrl}?token=openclaw20260207&userId=${encodeURIComponent(uid)}&ref=${encodeURIComponent(currentHorseOwner)}`;
 
     setStatus(`正在和 ${currentHorseOwner} 的马厩建立连接...`, "connecting");
 
@@ -158,8 +169,47 @@
 
     socket.addEventListener("open", () => {
       reconnectAttempts = 0;
+      if (useSimple) {
+        wsMode = "simple";
+        setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+        enableInput();
+        if (!autoGreetingSent) {
+          autoGreetingSent = true;
+          setTimeout(() => {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({
+                type: "user_message",
+                userId: uid,
+                ref: currentHorseOwner,
+                text: "[首屏]",
+              }));
+            }
+          }, 300);
+        }
+        return;
+      }
+      wsMode = null;
+      simpleModeTimer = setTimeout(() => {
+        if (wsMode !== null) return;
+        wsMode = "simple";
+        simpleModeTimer = null;
+        setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+        enableInput();
+        if (!autoGreetingSent && socket && socket.readyState === WebSocket.OPEN) {
+          autoGreetingSent = true;
+          setTimeout(() => {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({
+                type: "user_message",
+                userId: uid,
+                ref: currentHorseOwner,
+                text: "[首屏]",
+              }));
+            }
+          }, 300);
+        }
+      }, 800);
       setStatus(`正在完成连接握手...`, "connecting");
-      // 注意：实际的连接完成需要等待 challenge 响应
     });
 
     socket.addEventListener("message", (event) => {
@@ -173,10 +223,11 @@
         console.log("收到非 JSON 消息:", event.data);
       }
 
-      // 处理 OpenClaw Gateway 的 connect.challenge 事件
+      // 处理 OpenClaw Gateway 的 connect.challenge 事件（强制简单连接时忽略，不调 sign-device）
       if (payload && payload.type === "event" && payload.event === "connect.challenge") {
-        // 响应 challenge：发送 connect 请求
-        // 需要通过服务器端 API 获取真实的设备签名
+        if (forceSimple || fallbackToSimple) return;
+        if (simpleModeTimer) { clearTimeout(simpleModeTimer); simpleModeTimer = null; }
+        wsMode = "gateway";
         const nonce = payload.payload.nonce;
         const timestamp = payload.payload.ts;
         
@@ -192,7 +243,7 @@
             clientMode: "cli",
             role: "operator",
             scopes: ["operator.read", "operator.write"],
-            token: "horse2026"
+            token: "openclaw20260207"
           })
         })
         .then(res => res.json())
@@ -208,7 +259,7 @@
                 id: "cli",
                 version: "1.0.0",
                 platform: "web",
-                mode: "cli",
+                mode: "operator",
               },
               role: "operator",
               scopes: ["operator.read", "operator.write"],
@@ -216,7 +267,7 @@
               commands: [],
               permissions: {},
               auth: {
-                token: "horse2026",
+                token: "openclaw20260207",
               },
               locale: "zh-CN",
               userAgent: "Horse-Web/1.0.0",
@@ -244,11 +295,27 @@
         return; // 不显示 challenge 消息给用户
       }
 
+      // 处理 connect 被拒（打印完整错误便于排查，并自动降级到简单模式由 horse-agent 提供开屏词和 AI）
+      if (payload && payload.type === "res" && payload.ok === false && payload.id && String(payload.id).startsWith("connect_")) {
+        const err = payload.error || {};
+        console.error("[Horse] connect 被拒:", err.code || "", err.message || "", payload.error);
+        if (simpleModeTimer) { clearTimeout(simpleModeTimer); simpleModeTimer = null; }
+        fallbackToSimple = true;
+        setStatus("正在改用简单模式重连…", "connecting");
+        if (socket) {
+          try { socket.close(1000, "gateway-failed"); } catch (_) {}
+          socket = null;
+        }
+        setTimeout(() => connectWebSocket(), 300);
+        return;
+      }
+
       // 处理 connect 响应（连接成功）
       if (payload && payload.type === "res" && payload.ok === true && payload.payload && payload.payload.type === "hello-ok") {
+        if (simpleModeTimer) { clearTimeout(simpleModeTimer); simpleModeTimer = null; }
+        wsMode = "gateway";
         setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
         enableInput();
-        // 每个会话只自动触发一次：发送一条消息让 AI 生成拜年语，作为第一条消息
         if (!autoGreetingSent) {
           autoGreetingSent = true;
           setTimeout(() => {
@@ -261,7 +328,7 @@
                 method: "chat.send",
                 params: {
                   sessionKey: sessionKey,
-                  message: "你好",
+                  message: "[首屏]",
                   idempotencyKey: idempotencyKey,
                 },
               }));
@@ -308,42 +375,43 @@
         const chatData = payload.payload;
         console.log("收到 chat 事件:", chatData);
         
-        // 移除"思考中"占位消息
         const thinkingIndex = messages.findIndex(msg => msg.thinking);
         if (thinkingIndex !== -1) {
           messages.splice(thinkingIndex, 1);
         }
         
-        // 提取消息文本
         let messageText = null;
         if (chatData && chatData.message) {
           const msg = chatData.message;
-          // 消息可能在 text 字段
           if (msg.text) {
             messageText = msg.text;
-          }
-          // 或者在 content 字段（可能是数组或字符串）
-          else if (msg.content) {
+          } else if (msg.content) {
             if (typeof msg.content === "string") {
               messageText = msg.content;
             } else if (Array.isArray(msg.content)) {
-              // content 可能是数组，提取文本部分
               messageText = msg.content
                 .filter(item => item.type === "text" && item.text)
                 .map(item => item.text)
                 .join("\n");
             }
-          }
-          // 或者 content 是纯文本
-          else if (typeof msg === "string") {
+          } else if (typeof msg === "string") {
             messageText = msg;
           }
         }
         
-        // 如果是流式更新（delta），更新最后一条消息
+        // 若有预填拜年语，用 AI 回复替换它
+        const preFilledIdx = messages.findIndex(m => m.role === "ai" && m.preFilled);
+        if (preFilledIdx !== -1 && messageText) {
+          messages[preFilledIdx].text = messageText;
+          delete messages[preFilledIdx].preFilled;
+          renderMessages();
+          setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+          return;
+        }
+        
         if (chatData.state === "delta" && messageText) {
           const lastMessage = messages[messages.length - 1];
-          if (lastMessage && lastMessage.role === "ai") {
+          if (lastMessage && lastMessage.role === "ai" && !lastMessage.thinking) {
             lastMessage.text = messageText;
             renderMessages();
           } else {
@@ -352,7 +420,6 @@
           return;
         }
         
-        // 如果是最终消息（final），添加新消息
         if (chatData.state === "final" && messageText) {
           addMessage("ai", messageText);
           setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
@@ -443,9 +510,18 @@
       let text;
 
       if (payload && typeof payload === "object") {
-        if (payload.type === "ai_message" && payload.text) {
-          text = payload.text;
+        if (payload.type === "ai_message") {
+          const raw = typeof payload.text === "string" ? payload.text : "";
+          text = raw.trim() || "新年快乐～咱们这儿是拜年马厩，有什么祝福想留给马主吗？";
           role = "ai";
+          // 若存在预填拜年语，用首条 AI 回复替换它，避免重复
+          const preFilledIdx = messages.findIndex(m => m.role === "ai" && m.preFilled);
+          if (preFilledIdx !== -1) {
+            messages[preFilledIdx].text = text;
+            delete messages[preFilledIdx].preFilled;
+            renderMessages();
+            return;
+          }
         } else if (payload.type === "system" && payload.text) {
           text = payload.text;
           role = "system";
@@ -454,16 +530,24 @@
         }
       }
 
-      if (!text) {
+      if (text === undefined || text === null) {
         // 对于未知格式，记录但不显示（避免干扰用户）
         console.log("收到未知格式消息，已忽略:", payload);
         return;
+      }
+      // ai_message 允许空字符串时显示兜底拜年语
+      if (role === "ai" && !String(text).trim()) {
+        text = "新年快乐～咱们这儿是拜年马厩，有什么祝福想留给马主吗？";
       }
 
       addMessage(role, text);
     });
 
     socket.addEventListener("close", (event) => {
+      // 网关 connect 被拒后我们主动 close(1000, "gateway-failed") 并已安排降级重连，此处不再重试
+      if (event.code === 1000 && event.reason === "gateway-failed") {
+        return;
+      }
       // 如果是 wss:// 连接失败且错误码是协议错误，尝试降级到 ws://
       if (wsProtocol === 'wss:' && event.code === 1002 && useWss !== false) {
         console.log("wss:// 连接失败，尝试降级到 ws://");
@@ -529,20 +613,19 @@
       return;
     }
 
-    // OpenClaw Gateway 消息格式：使用 chat.send 方法
-    const requestId = `chat_send_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    // idempotencyKey: 用于防止重复发送相同消息，使用时间戳+随机数确保唯一性
-    const idempotencyKey = `horse_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const payload = {
-      type: "req",
-      id: requestId,
-      method: "chat.send",
-      params: {
-        sessionKey: sessionKey, // 每个用户独立的 session
-        message: text,
-        idempotencyKey: idempotencyKey, // 必需参数：防止重复发送
-      },
-    };
+    let payload;
+    if (wsMode === "simple") {
+      payload = { type: "user_message", userId: uid, ref: currentHorseOwner, text };
+    } else {
+      const requestId = `chat_send_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const idempotencyKey = `horse_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      payload = {
+        type: "req",
+        id: requestId,
+        method: "chat.send",
+        params: { sessionKey: sessionKey, message: text, idempotencyKey: idempotencyKey },
+      };
+    }
 
     try {
       socket.send(JSON.stringify(payload));
@@ -681,7 +764,8 @@
 
   function init() {
     ownerNameEl.textContent = currentHorseOwner;
-    // 打开即自动生成一条拜年消息（连接成功后自动触发一次），挂在第一条
+    // 页面打开即显示预填拜年语（不依赖连接），符合 horse_logic 规则
+    addMessage("ai", getPreFillGreeting(currentHorseOwner), { preFilled: true });
     setupShareSection();
     setupInputEvents();
     connectWebSocket();
