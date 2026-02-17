@@ -42,7 +42,7 @@ services:
       - OPENCLAW_GATEWAY_TRUSTED_PROXIES=10.8.0.0/16,172.17.0.0/16,172.18.0.0/16,172.19.0.0/16,0.0.0.0/0
       # HTTP 下允许仅用 token 认证，避免 "control ui requires HTTPS or localhost"
       - OPENCLAW_GATEWAY_CONTROL_UI_ALLOW_INSECURE_AUTH=true
-      - OPENCLAW_GATEWAY_CONTROL_UI_DANGEROUSLY_DISABLE_DEVICE_AUTH=true
+      - OPENCLAW_GATEWAY_CONTROL_UI_DANGEROUSLY_DISABLE_DEVICE_AUTH=false
       # 浏览器 profile 直接用配置文件里的 `browser.profiles.remote.cdpUrl`，避免与内部端口探测冲突
       # 默认 profile 已在 config/openclaw.json 中设为 "remote"
       # memory_search 使用 OpenAI 兼容的 embedding API；本地向量服务无需真实 key，设 dummy 通过校验
@@ -93,6 +93,38 @@ services:
     # 仅在调试时需要暴露端口，生产环境可注释掉 ports
     # ports:
     #   - "9223:3000"
+
+  # 设备签名服务：与网关同一 identity，按 buildDeviceAuthPayload 格式签名，供 horse-server connect 带 device
+  sign-device:
+    image: node:20-alpine
+    container_name: sign-device
+    restart: always
+    working_dir: /app
+    command: ["node", "scripts/sign-device-server.js", "3020"]
+    environment:
+      - IDENTITY_DIR=/app/identity
+    volumes:
+      - ./config/identity:/app/identity:ro
+      - ./scripts:/app/scripts:ro
+    networks:
+      - amyclaw-bridge
+
+  # Horse 拜年分身简单协议（/horse-ws -> 2026），通过 amyclaw-gateway chat 生成开屏词与回复
+  horse-server:
+    build: ./horse-server
+    container_name: horse-server
+    restart: always
+    ports:
+      - "2026:2026"
+    environment:
+      - PORT=2026
+      - GATEWAY_WS_URL=ws://amyclaw-gateway:3202
+      - GATEWAY_AUTH_TOKEN=openclaw20260207
+      - SIGN_DEVICE_URL=http://sign-device:3020
+    depends_on:
+      - sign-device
+    networks:
+      - amyclaw-bridge
 
   # 3. Nginx 转发（宿主机端口 3012 与 nginx-agent/jim.amyclaw.ai.conf 中 proxy_pass 一致，不修改 152 配置）
   amyclaw-nginx:

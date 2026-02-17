@@ -1,0 +1,9 @@
+{
+  "name": "horse-server",
+  "version": "1.0.0",
+  "description": "Horse simple protocol WebSocket server",
+  "main": "index.js",
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
