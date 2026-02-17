@@ -381,37 +381,42 @@
         }
         
         let messageText = null;
-        if (chatData && chatData.message) {
-          const msg = chatData.message;
-          if (msg.text) {
-            messageText = msg.text;
-          } else if (msg.content) {
-            if (typeof msg.content === "string") {
-              messageText = msg.content;
-            } else if (Array.isArray(msg.content)) {
-              messageText = msg.content
-                .filter(item => item.type === "text" && item.text)
-                .map(item => item.text)
-                .join("\n");
-            }
-          } else if (typeof msg === "string") {
-            messageText = msg;
+        if (chatData) {
+          if (chatData.message) {
+            const msg = chatData.message;
+            if (msg.text) messageText = msg.text;
+            else if (msg.content) {
+              if (typeof msg.content === "string") messageText = msg.content;
+              else if (Array.isArray(msg.content))
+                messageText = msg.content
+                  .filter(item => item.type === "text" && item.text)
+                  .map(item => item.text)
+                  .join("\n");
+            } else if (typeof msg === "string") messageText = msg;
           }
+          if (messageText == null && typeof chatData.text === "string") messageText = chatData.text;
+          if (messageText == null && typeof chatData.content === "string") messageText = chatData.content;
         }
-        
-        // 若有预填拜年语，用 AI 回复替换它
+        messageText = messageText != null ? String(messageText).trim() : null;
+
         const preFilledIdx = messages.findIndex(m => m.role === "ai" && m.preFilled);
-        if (preFilledIdx !== -1 && messageText) {
-          messages[preFilledIdx].text = messageText;
+
+        function replacePreFillWith(text) {
+          if (preFilledIdx === -1 || !text) return false;
+          messages[preFilledIdx].text = text;
           delete messages[preFilledIdx].preFilled;
           renderMessages();
           setStatus(`已连接到 ${currentHorseOwner} 的AI分身`, "connected");
-          return;
+          return true;
         }
-        
+
+        if (messageText && replacePreFillWith(messageText)) return;
+
         if (chatData.state === "delta" && messageText) {
           const lastMessage = messages[messages.length - 1];
-          if (lastMessage && lastMessage.role === "ai" && !lastMessage.thinking) {
+          if (lastMessage && lastMessage.role === "ai" && lastMessage.preFilled) {
+            replacePreFillWith(messageText);
+          } else if (lastMessage && lastMessage.role === "ai" && !lastMessage.thinking) {
             lastMessage.text = messageText;
             renderMessages();
           } else {
@@ -419,18 +424,15 @@
           }
           return;
         }
-        
+
         if (chatData.state === "final" && messageText) {
-          addMessage("ai", messageText);
-          setStatus(`已连接到 ${currentHorseOwner} 的AI分身`, "connected");
+          if (!replacePreFillWith(messageText)) addMessage("ai", messageText);
           return;
         }
-        
-        // 如果没有 state，尝试直接提取
-        if (messageText) {
+
+        if (messageText && !replacePreFillWith(messageText)) {
           addMessage("ai", messageText);
           setStatus(`已连接到 ${currentHorseOwner} 的AI分身`, "connected");
-          return;
         }
       }
 
@@ -463,9 +465,13 @@
           }
           
           if (text) {
-            // 流式更新最后一条 AI 消息
             const lastMessage = messages[messages.length - 1];
-            if (lastMessage && lastMessage.role === "ai" && !lastMessage.thinking) {
+            const preFilledMsg = messages.find(m => m.role === "ai" && m.preFilled);
+            if (preFilledMsg) {
+              preFilledMsg.text = text;
+              delete preFilledMsg.preFilled;
+              renderMessages();
+            } else if (lastMessage && lastMessage.role === "ai" && !lastMessage.thinking) {
               lastMessage.text = text;
               renderMessages();
             } else {
@@ -511,13 +517,13 @@
 
       if (payload && typeof payload === "object") {
         if (payload.type === "ai_message") {
-          const raw = typeof payload.text === "string" ? payload.text : "";
-          text = raw.trim() || `${currentHorseOwner} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
+          let raw = typeof payload.text === "string" ? payload.text : "";
+          if (!raw && typeof payload.content === "string") raw = payload.content;
+          text = (raw && raw.trim()) || `${currentHorseOwner} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
           role = "ai";
-          // 若存在预填拜年语，用首条 AI 回复替换它；若 AI 返回无效内容（如 NO、过短）则保留预填
           const preFilledIdx = messages.findIndex(m => m.role === "ai" && m.preFilled);
           if (preFilledIdx !== -1) {
-            const invalidFirstReply = /^(no|nope|不|拒绝)$/i.test(text) || (text.length > 0 && text.length < 12);
+            const invalidFirstReply = /^(no|nope|不|拒绝)$/i.test(text) || (text.length > 0 && text.length < 8);
             if (invalidFirstReply) {
               delete messages[preFilledIdx].preFilled;
               renderMessages();
@@ -526,6 +532,7 @@
             messages[preFilledIdx].text = text;
             delete messages[preFilledIdx].preFilled;
             renderMessages();
+            setStatus(`已连接到 ${currentHorseOwner} 的AI分身`, "connected");
             return;
           }
         } else if (payload.type === "system" && payload.text) {
