@@ -103,7 +103,7 @@
       if (msg.role === "ai" || msg.role === "user") {
         const meta = document.createElement("span");
         meta.className = `bubble-meta ${msg.role}`;
-        meta.textContent = msg.role === "ai" ? "Horse 分身" : "你";
+        meta.textContent = msg.role === "ai" ? `${currentHorseOwner} 的AI分身` : "你";
         bubble.appendChild(meta);
       } else if (msg.role === "system") {
         // 系统消息不显示 meta
@@ -171,11 +171,12 @@
       reconnectAttempts = 0;
       if (useSimple) {
         wsMode = "simple";
-        setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+        setStatus(`已连接到 ${currentHorseOwner} 的AI分身`, "connected");
         enableInput();
         if (!autoGreetingSent) {
           autoGreetingSent = true;
-          setTimeout(() => {
+          setStatus("正在请求 AI 生成首条拜年语…", "connecting");
+          const sendFirst = () => {
             if (socket && socket.readyState === WebSocket.OPEN) {
               socket.send(JSON.stringify({
                 type: "user_message",
@@ -184,7 +185,8 @@
                 text: "[首屏]",
               }));
             }
-          }, 300);
+          };
+          sendFirst();
         }
         return;
       }
@@ -193,20 +195,19 @@
         if (wsMode !== null) return;
         wsMode = "simple";
         simpleModeTimer = null;
-        setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+        setStatus(`已连接到 ${currentHorseOwner} 的AI分身`, "connected");
         enableInput();
         if (!autoGreetingSent && socket && socket.readyState === WebSocket.OPEN) {
           autoGreetingSent = true;
-          setTimeout(() => {
-            if (socket && socket.readyState === WebSocket.OPEN) {
-              socket.send(JSON.stringify({
-                type: "user_message",
-                userId: uid,
-                ref: currentHorseOwner,
-                text: "[首屏]",
-              }));
-            }
-          }, 300);
+          setStatus("正在请求 AI 生成首条拜年语…", "connecting");
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+              type: "user_message",
+              userId: uid,
+              ref: currentHorseOwner,
+              text: "[首屏]",
+            }));
+          }
         }
       }, 800);
       setStatus(`正在完成连接握手...`, "connecting");
@@ -314,26 +315,25 @@
       if (payload && payload.type === "res" && payload.ok === true && payload.payload && payload.payload.type === "hello-ok") {
         if (simpleModeTimer) { clearTimeout(simpleModeTimer); simpleModeTimer = null; }
         wsMode = "gateway";
-        setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+        setStatus(`已连接到 ${currentHorseOwner} 的AI分身`, "connected");
         enableInput();
         if (!autoGreetingSent) {
           autoGreetingSent = true;
-          setTimeout(() => {
-            if (socket && socket.readyState === WebSocket.OPEN) {
-              const requestId = `greeting_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-              const idempotencyKey = `greeting_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-              socket.send(JSON.stringify({
-                type: "req",
-                id: requestId,
-                method: "chat.send",
-                params: {
-                  sessionKey: sessionKey,
-                  message: "[首屏]",
-                  idempotencyKey: idempotencyKey,
-                },
-              }));
-            }
-          }, 400);
+          setStatus("正在请求 AI 生成首条拜年语…", "connecting");
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            const requestId = `greeting_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+            const idempotencyKey = `greeting_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+            socket.send(JSON.stringify({
+              type: "req",
+              id: requestId,
+              method: "chat.send",
+              params: {
+                sessionKey: sessionKey,
+                message: "[首屏]",
+                idempotencyKey: idempotencyKey,
+              },
+            }));
+          }
         }
         return;
       }
@@ -405,7 +405,7 @@
           messages[preFilledIdx].text = messageText;
           delete messages[preFilledIdx].preFilled;
           renderMessages();
-          setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+          setStatus(`已连接到 ${currentHorseOwner} 的AI分身`, "connected");
           return;
         }
         
@@ -422,14 +422,14 @@
         
         if (chatData.state === "final" && messageText) {
           addMessage("ai", messageText);
-          setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+          setStatus(`已连接到 ${currentHorseOwner} 的AI分身`, "connected");
           return;
         }
         
         // 如果没有 state，尝试直接提取
         if (messageText) {
           addMessage("ai", messageText);
-          setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+          setStatus(`已连接到 ${currentHorseOwner} 的AI分身`, "connected");
           return;
         }
       }
@@ -471,14 +471,14 @@
             } else {
               addMessage("ai", text);
             }
-            setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+            setStatus(`已连接到 ${currentHorseOwner} 的AI分身`, "connected");
           }
           return;
         }
         
         // 处理 lifecycle 事件（完成）
         if (agentData.stream === "lifecycle" && agentData.data && agentData.data.status === "completed") {
-          setStatus(`已连接到 ${currentHorseOwner} 的 Horse 分身`, "connected");
+          setStatus(`已连接到 ${currentHorseOwner} 的AI分身`, "connected");
           return;
         }
       }
@@ -512,11 +512,17 @@
       if (payload && typeof payload === "object") {
         if (payload.type === "ai_message") {
           const raw = typeof payload.text === "string" ? payload.text : "";
-          text = raw.trim() || "新年快乐～咱们这儿是拜年马厩，有什么祝福想留给马主吗？";
+          text = raw.trim() || `${currentHorseOwner} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
           role = "ai";
-          // 若存在预填拜年语，用首条 AI 回复替换它，避免重复
+          // 若存在预填拜年语，用首条 AI 回复替换它；若 AI 返回无效内容（如 NO、过短）则保留预填
           const preFilledIdx = messages.findIndex(m => m.role === "ai" && m.preFilled);
           if (preFilledIdx !== -1) {
+            const invalidFirstReply = /^(no|nope|不|拒绝)$/i.test(text) || (text.length > 0 && text.length < 12);
+            if (invalidFirstReply) {
+              delete messages[preFilledIdx].preFilled;
+              renderMessages();
+              return;
+            }
             messages[preFilledIdx].text = text;
             delete messages[preFilledIdx].preFilled;
             renderMessages();
@@ -537,7 +543,7 @@
       }
       // ai_message 允许空字符串时显示兜底拜年语
       if (role === "ai" && !String(text).trim()) {
-        text = "新年快乐～咱们这儿是拜年马厩，有什么祝福想留给马主吗？";
+        text = `${currentHorseOwner} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
       }
 
       addMessage(role, text);
@@ -608,7 +614,7 @@
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       addMessage(
         "system",
-        "当前尚未连接到 Horse 分身，消息已记录但无法发送到后端。"
+        "当前尚未连接到马主的AI分身，消息已记录但无法发送到后端。"
       );
       return;
     }
@@ -636,12 +642,13 @@
   }
 
   function setupShareSection() {
-    // 如果 URL 中有 ref 参数，显示分享区域
+    // 用户名 + 创建链接区域始终显示，方便任何人创建自己的专属链接
+    createLinkSectionEl.style.display = "block";
+    // 若 URL 中有 ref 且非 Admin，同时显示当前链接的分享区域
     if (currentHorseOwner && currentHorseOwner !== "Admin") {
       showShareLinkSection();
     } else {
-      // 否则显示创建链接区域
-      showCreateLinkSection();
+      shareLinkSectionEl.style.display = "none";
     }
 
     // 创建链接按钮事件
@@ -701,7 +708,7 @@
     // 一键分享按钮事件
     shareButtonEl.addEventListener("click", async () => {
       const link = currentLinkEl.href;
-      const title = `${currentHorseOwner} 的 Horse 拜年分身`;
+      const title = `${currentHorseOwner} 的AI分身`;
       const text = `来给 ${currentHorseOwner} 拜年吧！`;
 
       try {
@@ -735,7 +742,6 @@
   }
 
   function showShareLinkSection() {
-    createLinkSectionEl.style.display = "none";
     shareLinkSectionEl.style.display = "block";
     
     const origin = window.location.origin || "https://horse.amyclaw.com";
@@ -762,8 +768,11 @@
     });
   }
 
+  const chatCardTitleEl = document.getElementById("chatCardTitle");
+
   function init() {
     ownerNameEl.textContent = currentHorseOwner;
+    if (chatCardTitleEl) chatCardTitleEl.textContent = `${currentHorseOwner} 的AI助理`;
     // 页面打开即显示预填拜年语（不依赖连接），符合 horse_logic 规则
     addMessage("ai", getPreFillGreeting(currentHorseOwner), { preFilled: true });
     setupShareSection();

@@ -260,17 +260,24 @@ wss.on("connection", (ws, req) => {
 
     const text = msg.text && String(msg.text).trim();
     const refFromMsg = msg.ref || ref;
+    // 首屏请求时在消息中带上 ref，供 horse_logic 生成符合规则的拜年语（50 字内、以马主为主语、引导句）
+    const messageToGateway =
+      !text || text === "[首屏]"
+        ? `[首屏]\n（当前马主：${refFromMsg}）`
+        : text;
 
     let reply;
     try {
-      reply = await sendChatAndWaitReply(refFromMsg, userId, text || "[首屏]");
+      reply = await sendChatAndWaitReply(refFromMsg, userId, messageToGateway);
     } catch (e) {
       console.error("[horse-ws] gateway error:", e.message);
       const name = refFromMsg && refFromMsg.trim() ? refFromMsg.trim() : "马主";
-      reply = "新年快乐～咱们这儿是拜年马厩，有什么祝福想留给马主吗？";
+      reply = `${name} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
     }
 
-    send({ type: "ai_message", text: reply || "" });
+    const name = refFromMsg && refFromMsg.trim() ? refFromMsg.trim() : "马主";
+    const fallback = `${name} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
+    send({ type: "ai_message", text: (reply && String(reply).trim()) ? reply : fallback });
   });
 
   ws.on("close", () => {});
