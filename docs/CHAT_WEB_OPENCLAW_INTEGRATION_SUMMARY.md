@@ -105,8 +105,29 @@ docker exec horse-server node /app/test-ws.js 127.0.0.1
 | invalid connect params: client/mode | client.mode 用了 "operator" 或非法值 | 改为 "backend"（或 "cli" 等 schema 允许值） |
 | device signature invalid | 签名原文或编码与网关不一致 | sign-device 用 buildDeviceAuthPayload + base64url，与网关 device-auth.ts 对齐 |
 | missing scope: operator.write / operator.admin | 未带 device 或 device 未通过，或 scopes 不足 | 确保先收 challenge、带 device 连接；scopes 含 read、write、admin；paired.json 中该 device 的 scopes 也包含这些 |
-| pairing required | device 未配对或配对信息与当前 connect 不符 | 在 config/devices/paired.json 中补全该 deviceId，clientMode、scopes 与 connect 一致 |
+| pairing required | device 未配对或配对信息与当前 connect 不符 | 见下方「排查 pairing required」；或补全 config/devices/paired.json 后**重启 amyclaw-gateway** |
+| gateway chat timeout | 先前的 connect 失败（如 pairing required）导致无完整 scope，或 AI 响应过慢 | 先解决 pairing，再观察；必要时调大 horse-server 内 chat 超时（当前 60s） |
 | 收到兜底文案 | connect 未就绪或 chat.send 失败 | 查 horse-server 日志，按上面几项逐项核对 |
+
+**排查 pairing required（在部署机 x1 上执行）：**
+
+1. **确认 identity 与 paired 的 deviceId 一致**（否则网关不认当前设备）：
+   ```bash
+   cd /mnt/disk/amyclaw/jim
+   echo "identity:" && node -e "console.log(require('./config/identity/device.json').deviceId)"
+   echo "paired keys:" && node -e "console.log(Object.keys(require('./config/devices/paired.json')).join(' '))"
+   ```
+   两处应为同一 deviceId（如 `59a2e9b0b5dc5a6fe714bba04dcb21915ef001141ea652d4c42552f361cfb7d1`）。
+
+2. **重启网关以重新加载 paired.json**（网关可能只在启动时读）：
+   ```bash
+   docker compose restart amyclaw-gateway
+   ```
+
+3. **看网关侧拒绝原因**：
+   ```bash
+   docker logs amyclaw-gateway 2>&1 | grep -iE "pair|device|challenge"
+   ```
 
 ### 3.3 不建议的做法
 
@@ -116,7 +137,42 @@ docker exec horse-server node /app/test-ws.js 127.0.0.1
 
 ---
 
-## 四、相关文档
+## 四、查看用户消息与 AI 回复滚动日志
+
+### 4.1 实时滚动（horse-server 标准输出）
+
+每条**用户消息**（含首屏）和每条 **AI 回复**都会打一行日志，格式：
+- 用户：`[horse-ws] user_message <ref> <userId> <内容前80字>`
+- AI：`[horse-ws] ai_message <ref> <userId> <内容前80字>`
+
+```bash
+# 实时查看用户消息 + AI 回复（一起收看）
+docker logs -f horse-server 2>&1 | grep -E "user_message|ai_message"
+```
+
+### 4.2 日志与会话存储路径
+
+| 类型 | 宿主机路径 | 说明 |
+|------|------------|------|
+| **用户消息 / AI 回复滚动日志** | 无独立文件 | horse-server 打 stdout，由 Docker 收集；查看用 `docker logs horse-server`。若需落盘可：`docker logs -f horse-server >> /path/to/horse.log` 或配置 Docker logging driver。 |
+| **会话（对话历史）** | **`/mnt/disk/amyclaw/data/openclaw-sessions/`** | 容器内 `/home/node/.openclaw/agents/main/sessions`；每个会话 `<uuid>.jsonl`，含用户与 AI 消息。 |
+| **配置审计日志** | **`config/logs/config-audit.jsonl`** | 配置写入等审计事件（非聊天内容）。 |
+| **网关内部日志文件** | 容器内 `/tmp/openclaw/openclaw-*.log` | 网关可能写入的日志，未挂载到宿主机，重启即丢。 |
+
+### 4.3 历史记录（OpenClaw 会话 JSONL）
+
+会话持久化在宿主机 **`/mnt/disk/amyclaw/data/openclaw-sessions/`**（容器内 `/home/node/.openclaw/agents/main/sessions`），每个会话一个 `<uuid>.jsonl`，每行一条 JSON。
+
+- 用户消息：`"type":"message"` 且 `"message":{"role":"user", ...}`，正文在 `message.content[].text`。
+- 查看某文件中所有用户消息示例：
+  ```bash
+  grep '"role":"user"' /mnt/disk/amyclaw/data/openclaw-sessions/*.jsonl | head -20
+  ```
+- 需要按 sessionKey 找对应文件时，可查同目录下 `sessions.json` 中的映射（sessionKey → session id / 文件前缀）。
+
+---
+
+## 五、相关文档
 
 - 协议与合规：`docs/OPENCLAW_FRONTEND_INTEGRATION.md`
 - 设备与签名排查：`docs/HORSE_GATEWAY_DEVICE_CHECK.md`

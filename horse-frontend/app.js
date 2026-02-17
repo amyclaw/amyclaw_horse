@@ -224,6 +224,27 @@
         console.log("收到非 JSON 消息:", event.data);
       }
 
+      // 优先处理 simple 协议的 ai_message，确保 AI 生成内容能替换预填并显示
+      if (payload && payload.type === "ai_message") {
+        let raw = (typeof payload.text === "string" && payload.text.trim()) || (typeof payload.content === "string" && payload.content.trim()) || (payload.payload && typeof payload.payload.text === "string" && payload.payload.text.trim()) || "";
+        const text = raw || `${currentHorseOwner} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
+        const preFilledIdx = messages.findIndex(m => m.role === "ai" && m.preFilled);
+        if (preFilledIdx !== -1) {
+          const invalidFirstReply = /^(no|nope|不|拒绝)$/i.test(text) || (text.length > 0 && text.length < 8);
+          if (!invalidFirstReply) {
+            messages[preFilledIdx].text = text;
+            delete messages[preFilledIdx].preFilled;
+            renderMessages();
+            setStatus(`已连接到 ${currentHorseOwner} 的AI分身`, "connected");
+            return;
+          }
+          delete messages[preFilledIdx].preFilled;
+        }
+        addMessage("ai", text);
+        setStatus(`已连接到 ${currentHorseOwner} 的AI分身`, "connected");
+        return;
+      }
+
       // 处理 OpenClaw Gateway 的 connect.challenge 事件（强制简单连接时忽略，不调 sign-device）
       if (payload && payload.type === "event" && payload.event === "connect.challenge") {
         if (forceSimple || fallbackToSimple) return;

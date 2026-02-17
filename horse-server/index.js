@@ -260,24 +260,31 @@ wss.on("connection", (ws, req) => {
 
     const text = msg.text && String(msg.text).trim();
     const refFromMsg = msg.ref || ref;
+    // 用户消息滚动日志：ref | userId | 内容（前 80 字），便于 docker logs -f horse-server 查看
+    console.log("[horse-ws] user_message", refFromMsg, userId || "-", (text || "[首屏]").slice(0, 80));
     // 首屏请求时在消息中带上 ref，供 horse_logic 生成符合规则的拜年语（50 字内、以马主为主语、引导句）
     const messageToGateway =
       !text || text === "[首屏]"
         ? `[首屏]\n（当前马主：${refFromMsg}）`
         : text;
 
-    let reply;
-    try {
-      reply = await sendChatAndWaitReply(refFromMsg, userId, messageToGateway);
-    } catch (e) {
-      console.error("[horse-ws] gateway error:", e.message);
-      const name = refFromMsg && refFromMsg.trim() ? refFromMsg.trim() : "马主";
-      reply = `${name} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
-    }
-
     const name = refFromMsg && refFromMsg.trim() ? refFromMsg.trim() : "马主";
     const fallback = `${name} 给您拜年啦！衷心祝愿您和全家在马年里龙马精神、红红火火！愿新的一年里，您家中喜气盈门，事业一马当先，福气、财气、好运统统奔腾而来，万事顺遂，阖家大吉！`;
-    send({ type: "ai_message", text: (reply && String(reply).trim()) ? reply : fallback });
+
+    let reply;
+    let fromGateway = false;
+    try {
+      reply = await sendChatAndWaitReply(refFromMsg, userId, messageToGateway);
+      fromGateway = true;
+    } catch (e) {
+      console.error("[horse-ws] gateway error:", e.message);
+      reply = fallback;
+    }
+
+    const aiText = (reply && String(reply).trim()) ? reply : fallback;
+    send({ type: "ai_message", text: aiText });
+    // AI 回复滚动日志；source=gateway 表示来自 AI，source=fallback 表示走兜底
+    console.log("[horse-ws] ai_message", refFromMsg, userId || "-", fromGateway ? "source=gateway" : "source=fallback", aiText.slice(0, 60));
   });
 
   ws.on("close", () => {});
