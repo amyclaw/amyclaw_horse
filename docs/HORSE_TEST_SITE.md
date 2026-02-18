@@ -43,6 +43,28 @@
 
 ---
 
+## 8080 无法访问时排查
+
+测试站 8080 由 **122 宿主机上的 Nginx** 提供（不是 Docker 里的 amyclaw-nginx）。若 `http://10.8.52.122:8080` 打不开，在 122 上执行诊断：
+
+```bash
+# 在 122 上执行（或从本机：ssh 10.8.52.122 'bash -s' < /mnt/disk/amyclaw/jim/scripts/check-horse-test-8080.sh）
+bash /mnt/disk/amyclaw/jim/scripts/check-horse-test-8080.sh
+```
+
+脚本会检查：端口是否监听、Nginx 是否配置 8080、horse-test 是否启用、www-test 目录是否存在、本机 curl 是否 200。
+
+**常见原因与处理：**
+
+| 现象 | 原因 | 处理 |
+|------|------|------|
+| 连接被拒绝 / 超时 | 未启用测试站或 Nginx 未监听 8080 | 按上文「测试站点部署步骤」第 2 步执行 cp + ln -sf + nginx -t + reload |
+| 本机 curl 200，内网其他机器访问不了 | 防火墙未放行 8080 | 若需内网访问：`sudo ufw allow 8080/tcp` 或 iptables 放行 8080（生产建议仅内网） |
+| 403 / 404 | www-test 不存在或为空 | `mkdir -p /mnt/disk/amyclaw/data/jim/horse/www-test` 后执行 `bash scripts/publish-horse-web-test.sh` |
+| Nginx 在 Docker 中 | 8080 需在宿主机或代理层暴露 | 确认提供 horse.amyclaw.com 的 Nginx 所在位置；若在宿主机，按本文在宿主机启用 horse-test；若在容器，需在容器内加入 8080 配置并映射宿主机 8080 |
+
+---
+
 ## 使用建议
 
 - 在测试站（8080 + www-test）验证前端改动，确认无误后再用 `publish-horse-web.sh` 发布到生产 www。
